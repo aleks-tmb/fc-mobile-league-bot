@@ -63,7 +63,7 @@ def participants_respond():
     participants = db.get_participants_list()
     sorted_participants = sorted(participants, key=lambda x: x.rate, reverse=True)
 
-    result = "Участники их рейтинг в РИ:\n\n"
+    result = "Участники и их рейтинг в РИ:\n\n"
     for i, participant in enumerate(sorted_participants, start=1):
         result += f"{i}. {participant.username} [{participant.rate}]\n"
     return result
@@ -100,7 +100,7 @@ async def set_rating_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     user = update.message.from_user
     print(f'[set_rating] You talk with user {user["username"]} and his user ID: {user["id"]}')
     if len(context.args) != 1:
-        await update.message.reply_text("Необходимо указать свой рейтинг, напрмер: '/setrating 123'")
+        await update.message.reply_text("Необходимо указать свой рейтинг, например: '/setrating 123'")
         return
     await update.message.reply_text(set_user_rating_respond(user["id"], user["username"], context.args[0]))
 
