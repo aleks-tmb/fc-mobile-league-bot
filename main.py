@@ -52,6 +52,11 @@ def register_user_respond(user_id, username):
             return f"{username}, ты УЖЕ зарегистрирован!"
 
     db.add_user(user_id, username)
+
+    participants = db.get_participants_list()
+    if len(participants) >= 16:
+        return "Регистрация на турнир закончена - свободных мест больше нет :("
+
     db.set_user_info(user_id, 'part', '1')
     return f"Спасибо за регистрацию в турнире, {username}! Удачи!"
 
