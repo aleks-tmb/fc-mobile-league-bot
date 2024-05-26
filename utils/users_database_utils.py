@@ -1,10 +1,11 @@
 from utils.spreadsheet_utils import SpreadsheetUtils
 
 class Participant:
-    def __init__(self, username, fc_name, rate):
+    def __init__(self, username, fc_name, rate, champ):
         self.username = username
         self.fc_name = fc_name
         self.rate = int(rate)
+        self.champ = champ
 
 class UsersDatabaseUtils:
     COLUMN_MAP = {
@@ -12,7 +13,8 @@ class UsersDatabaseUtils:
         'username': 2,
         'fcname': 3,
         'fcrate': 4,
-        'part': 5
+        'part': 5,
+        'champ': 6
     }
 
     def __init__(self):
@@ -104,6 +106,7 @@ class UsersDatabaseUtils:
                 participants.append(Participant(
                     self.get_data(row, 'username'),
                     self.get_data(row, 'fcname'),
-                    self.get_data(row, 'fcrate')
+                    self.get_data(row, 'fcrate'),
+                    self.get_data(row, 'champ')
                 ))
         return participants
