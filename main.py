@@ -1,14 +1,22 @@
 import os
 import argparse
-from telegram import Update
+from telegram import (
+    Update,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup
+)
+
 from telegram.ext import (
     Application,
     CommandHandler,
     ContextTypes,
+    MessageHandler,
+    CallbackQueryHandler
 )
 
 from utils.spreadsheet_utils import SpreadsheetUtils
 from utils.users_database_utils import UsersDatabaseUtils
+from utils.drawer import Drawer
 
 CONFIG = {}
 
@@ -66,12 +74,52 @@ def participants_respond():
         return "Failed to connect to the database."
 
     participants = db.get_participants_list()
-    sorted_participants = sorted(participants, key=lambda x: x.rate, reverse=True)
+    sorted_participants = sorted(participants, key=lambda x: (x.champ, x.rate), reverse=True)
 
     result = "Участники и их рейтинг в РИ:\n\n"
     for i, participant in enumerate(sorted_participants, start=1):
         result += f"{i}. {participant.username} [{participant.rate}]\n"
     return result
+
+def make_group_draw_respond():
+    users_db = UsersDatabaseUtils()
+    if not users_db.connect(CONFIG.get('key_path'), CONFIG.get('users_db')):
+        return "Failed to connect to the users database."
+
+    tournament_db = UsersDatabaseUtils()
+    if not tournament_db.connect(CONFIG.get('key_path'), CONFIG.get('tournament_db')):
+        return "Failed to connect to the users database."
+
+    participants = users_db.get_participants_list()
+    sorted_participants = sorted(participants, key=lambda x: (x.champ, x.rate), reverse=True)
+    usernames = [item.username for item in sorted_participants]
+
+    drawer = Drawer()
+    groups = drawer.make_group_draw(usernames, 4) 
+
+    letter = 'A'
+    rows = []
+    for group in groups:
+        for i in range(len(group)):
+            for j in range(i+1,len(group)):
+                rows.append([f'group{letter}',group[i],group[j]])
+                rows.append([f'group{letter}',group[i],group[j]])
+        letter = chr(ord(letter) + 1)
+    tournament_db.worksheet.append_rows(rows)
+    
+
+    result = 'Результаты жеребьевки\n'
+    letter = 'A'
+    for group in groups:
+        result += f'\nGroup {letter}\n'
+        for p in group:
+            result += f"@{p}\n"
+        letter = chr(ord(letter) + 1)
+
+    result += '\nСтраница для ввода результатов:\n'
+    result += 'https://docs.google.com/spreadsheets/d/' + CONFIG.get('tournament_db')
+    return result
+        
 
 def set_user_rating_respond(user_id, username, rating):
     if username is None:
@@ -90,6 +138,44 @@ def set_user_rating_respond(user_id, username, rating):
             return "Failed to update rating"
     except ValueError:
         return "Рейтинг должен быть целым числом!"
+
+async def next_stage_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.message.from_user
+    print(f'[start] You talk with user {user["username"]} and his user ID: {user["id"]}')
+
+    if user['username'] is None or user['username'] != 'ap_tmb':
+        await update.message.reply_text("Извините, функция вам не доступна")
+        return
+
+    keyboard = [
+        [
+            InlineKeyboardButton("Да", callback_data="Yep"),
+            InlineKeyboardButton("Нет", callback_data="No"),
+        ],
+    ]
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    await update.message.reply_text("Подтвердить?", reply_markup=reply_markup) 
+
+async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+
+    if not query.message:
+        await query.edit_message_text(text="Нет ;)")
+        return
+
+    user = query.from_user if query.from_user else None
+    if not user or user.username != 'ap_tmb':
+        await query.edit_message_text(text="Нет ;)")
+        return
+
+    if query.data == 'No':
+        await query.edit_message_text(text="Ок, отменим")
+        return
+
+    await query.edit_message_text(text=make_group_draw_respond())
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
@@ -112,9 +198,11 @@ async def set_rating_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
 def init_bot(token):
     print("Starting bot...")
     application = Application.builder().token(token).build()
-    application.add_handler(CommandHandler("showstatus", start_command))
-    application.add_handler(CommandHandler("register", register_command))
-    application.add_handler(CommandHandler("setrating", set_rating_command))
+    # application.add_handler(CommandHandler("showstatus", start_command))
+    # application.add_handler(CommandHandler("register", register_command))
+    # application.add_handler(CommandHandler("setrating", set_rating_command))
+    application.add_handler(CommandHandler("nextstage", next_stage_command))
+    application.add_handler(CallbackQueryHandler(button))
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 def main():
@@ -123,6 +211,7 @@ def main():
         return
     print(CONFIG)
     init_bot(CONFIG.get('bot_token'))
+    # print(make_group_draw_respond())
 
 if __name__ == "__main__":
     main()
