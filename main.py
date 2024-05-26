@@ -14,6 +14,7 @@ from telegram.ext import (
     CallbackQueryHandler
 )
 
+from utils.schedule_io_utils import ScheduleIOUtils
 from utils.spreadsheet_utils import SpreadsheetUtils
 from utils.users_database_utils import UsersDatabaseUtils
 from utils.drawer import Drawer
@@ -119,7 +120,20 @@ def make_group_draw_respond():
     result += '\nСтраница для ввода результатов:\n'
     result += 'https://docs.google.com/spreadsheets/d/' + CONFIG.get('tournament_db')
     return result
-        
+
+def make_group_table_respond(Full = False):
+    try:
+        spreadsheet_utils = SpreadsheetUtils(CONFIG.get('key_path'))
+        spreadsheet = spreadsheet_utils.get_spreadsheet_by_id(CONFIG.get('tournament_db'))
+        worksheet = spreadsheet.get_worksheet(0)  # For the first worksheet
+        scheduler = ScheduleIOUtils(worksheet)
+        groups = scheduler.get_groups_schedule()
+        messages = []
+        for group in groups.values():
+            messages.append(group.compute_table(Full))
+        return messages
+    except Exception as e:
+        return f"Error: {e}"
 
 def set_user_rating_respond(user_id, username, rating):
     if username is None:
@@ -180,7 +194,11 @@ async def button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     print(f'[start] You talk with user {user["username"]} and his user ID: {user["id"]}')
-    await update.message.reply_text(participants_respond())
+
+    full = len(context.args) == 1 and context.args[0] == 'full'
+    for message in make_group_table_respond(full):
+        await update.message.reply_html(f'<pre>{message}</pre>')
+        
 
 async def register_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
@@ -198,10 +216,10 @@ async def set_rating_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
 def init_bot(token):
     print("Starting bot...")
     application = Application.builder().token(token).build()
-    # application.add_handler(CommandHandler("showstatus", start_command))
+    application.add_handler(CommandHandler("status", start_command))
     # application.add_handler(CommandHandler("register", register_command))
     # application.add_handler(CommandHandler("setrating", set_rating_command))
-    application.add_handler(CommandHandler("nextstage", next_stage_command))
+    # application.add_handler(CommandHandler("nextstage", next_stage_command))
     application.add_handler(CallbackQueryHandler(button))
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
@@ -211,7 +229,8 @@ def main():
         return
     print(CONFIG)
     init_bot(CONFIG.get('bot_token'))
-    # print(make_group_draw_respond())
+    # for message in make_group_table_respond():
+    #     print(message)
 
 if __name__ == "__main__":
     main()

@@ -1,3 +1,5 @@
+from utils.group_handler import *
+
 class ScheduleIOUtils:
     def __init__(self, worksheet):
         self.worksheet = worksheet
@@ -56,3 +58,10 @@ class ScheduleIOUtils:
             result += "\n\nФинал\n\n" + '\n'.join(rounds['final'])
 
         return result
+
+    def get_groups_schedule(self):
+        groups = {f'group{chr(65 + i)}': Group(f'Group {chr(65 + i)}') for i in range(4)}
+        for row in self.worksheet.get_all_values():
+            if row[0] in groups.keys():
+                groups[row[0]].append_match(*row[1:])
+        return groups
