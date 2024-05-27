@@ -196,8 +196,12 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     print(f'[start] You talk with user {user["username"]} and his user ID: {user["id"]}')
 
     full = len(context.args) == 1 and context.args[0] == 'full'
-    for message in make_group_table_respond(full):
-        await update.message.reply_html(f'<pre>{message}</pre>')
+    if full:
+        for message in make_group_table_respond(full):
+            await update.message.reply_html(f'<pre>{message}</pre>')
+    else:
+        res = '\n\n'.join(make_group_table_respond(full))
+        await update.message.reply_html(f'<pre>{res}</pre>')
         
 
 async def register_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
