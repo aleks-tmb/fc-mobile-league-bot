@@ -63,10 +63,10 @@ class Group:
 
         self.items = sorted(items.values(), key=lambda x: (x.points, x.scores), reverse=True)
 
-        result = f"{self.name}    [игры,очки,голы]\n"
-        result += '-'*27 + '\n'
+        result = f"{self.name}   [игры,очки,голы]\n"
+        result += '-'*26 + '\n'
         for num, item in enumerate(self.items, start=1):
-            result += f"{num} {item.id[:16]:16}{item.games:2}{item.points:3}{item.scores:+4d}\n"
+            result += f"{num} {item.id[:15]:15}{item.games:2}{item.points:3}{item.scores:+4d}\n"
 
         if add_results:
             result += '\n' + self.get_matches_list()
