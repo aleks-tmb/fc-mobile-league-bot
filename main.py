@@ -1,7 +1,7 @@
 import os
 from telegram import Update
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler
-from handlers.command_handlers import start_command
+from handlers.command_handlers import start_command, next_stage_command, button_callback
 from utils.config_utils import read_config
 from utils.config_utils import CONFIG
 
@@ -9,7 +9,8 @@ def init_bot(token):
     print("Starting bot...")
     application = Application.builder().token(token).build()
     application.add_handler(CommandHandler("status", start_command))
-    # application.add_handler(CallbackQueryHandler(button_callback))
+    application.add_handler(CommandHandler("nextstage", next_stage_command))
+    application.add_handler(CallbackQueryHandler(button_callback))
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 def main():
