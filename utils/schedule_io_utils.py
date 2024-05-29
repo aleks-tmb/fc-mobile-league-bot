@@ -40,13 +40,13 @@ class ScheduleIOUtils:
         return f"{player1} - {player2}"
 
     def get_playoff_schedule(self):
-        rounds = {'quart': [], 'semi': [], 'final': [], 'third': []}
+        rounds = {'quarter': [], 'semi': [], 'final': [], 'third': []}
         for row in self.worksheet.get_all_values():
             round_type = row[0]
             if round_type in rounds:
                 rounds[round_type].append(self.parse_row(row))
 
-        result = "1/4 финала\n\n" + '\n'.join(rounds['quart'])
+        result = "1/4 финала\n\n" + '\n'.join(rounds['quarter'])
 
         if rounds['semi']:
             result += "\n\n1/2 финала\n\n" + '\n'.join(rounds['semi'])

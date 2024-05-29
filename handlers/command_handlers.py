@@ -14,19 +14,27 @@ async def is_user_admin(chat, user):
             return True
     return False
 
-def make_group_table_respond(Full = False):
+def make_results_respond(stage, full):
     try:
+        # Initialize the spreadsheet utility and scheduler
         spreadsheet_utils = SpreadsheetUtils(CONFIG.get('key_path'))
         spreadsheet = spreadsheet_utils.get_spreadsheet_by_id(CONFIG.get('tournament_db'))
-        worksheet = spreadsheet.get_worksheet(0)  # For the first worksheet
+        worksheet = spreadsheet.get_worksheet(0)  # First worksheet
         scheduler = ScheduleIOUtils(worksheet)
-        groups = scheduler.get_groups_schedule()
-        messages = []
-        for group in groups.values():
-            messages.append(group.compute_table(Full))
-        return messages
     except Exception as e:
         return f"Error: {e}"
+
+    if stage not in ['GROUP', 'PLAY-OFF']:
+        return "unknown stage"
+    
+    try:
+        if stage == 'GROUP':
+            groups = scheduler.get_groups_schedule()
+            return [group.compute_table(full) for group in groups.values()]
+        elif stage == 'PLAY-OFF':
+            return scheduler.get_playoff_schedule()
+    except Exception as e:
+        return f"Error processing stage {stage}: {e}"
 
 def group_stage_finished():
     try:
@@ -83,12 +91,13 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     print(f'[start] You talk with user {user["username"]} and his user ID: {user["id"]}')
 
     full = len(context.args) == 1 and context.args[0] == 'full'
-    if full:
-        for message in make_group_table_respond(full):
+    stage = CONFIG.get('stage')
+    respond = make_results_respond(stage, full)
+    if stage == 'GROUP':
+        for message in respond:
             await update.message.reply_html(f'<pre>{message}</pre>')
     else:
-        res = '\n\n'.join(make_group_table_respond(full))
-        await update.message.reply_html(f'<pre>{res}</pre>')
+        await update.message.reply_text(respond)
 
 async def register_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
