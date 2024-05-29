@@ -75,3 +75,6 @@ class Group:
 
     def get_matches_list(self):
         return "\n".join(str(match) for match in self.matches)
+
+    def all_matches_played(self):
+        return all(match.played for match in self.matches)
