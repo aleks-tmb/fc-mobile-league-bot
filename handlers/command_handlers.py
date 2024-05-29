@@ -150,7 +150,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     # Calculate the count of each reaction for this message
     like_count = len(reactions[message_id])
 
-    if like_count >= 2:
+    if like_count >= 7:
         await query.message.edit_reply_markup(reply_markup=None)
         await query.message.reply_text(make_palyoff_draw_respond())
         CONFIG['stage'] = 'PLAY-OFF'
