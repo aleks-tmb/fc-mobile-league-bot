@@ -8,34 +8,44 @@ class SpreadsheetUtils:
             'https://spreadsheets.google.com/feeds',
             'https://www.googleapis.com/auth/drive'
         ]
+        self.client = self.authenticate()
 
     def authenticate(self):
         try:
             creds = ServiceAccountCredentials.from_json_keyfile_name(self.keyfile_path, self.scope)
-            return gspread.authorize(creds)
+            client = gspread.authorize(creds)
+            return client
         except Exception as e:
             print(f"Authentication failed: {e}")
             return None
 
-    def create_and_share_spreadsheet(self, spreadsheet_title):
-        client = self.authenticate()
-        if client:
+    def _ensure_authenticated(self):
+        if not self.client:
+            self.client = self.authenticate()
+
+    def create_new_spreadsheet(self, spreadsheet_title):
+        self._ensure_authenticated()
+        if self.client:
             try:
-                spreadsheet = client.create(spreadsheet_title)
+                spreadsheet = self.client.create(spreadsheet_title)
                 spreadsheet.share('', perm_type='anyone', role='writer')
                 print(f"New spreadsheet '{spreadsheet.title}' created and shared for writing successfully!")
                 return spreadsheet
             except Exception as e:
                 print(f"Failed to create and share spreadsheet: {e}")
-                return None
+        else:
+            print("Client not authenticated. Cannot create and share spreadsheet.")
+        return None
 
     def get_spreadsheet_by_id(self, spreadsheet_id):
-        client = self.authenticate()
-        if client:
+        self._ensure_authenticated()
+        if self.client:
             try:
-                spreadsheet = client.open_by_key(spreadsheet_id)
+                spreadsheet = self.client.open_by_key(spreadsheet_id)
                 print(f"Spreadsheet '{spreadsheet.title}' retrieved successfully!")
                 return spreadsheet
             except Exception as e:
                 print(f"Failed to retrieve spreadsheet: {e}")
-                return None
+        else:
+            print("Client not authenticated. Cannot retrieve spreadsheet.")
+        return None
