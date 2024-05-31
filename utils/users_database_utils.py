@@ -150,7 +150,7 @@ class UsersDatabaseUtils:
         filtered_users = [user for user in users if user.part == '1']
         sorted_users = sorted(filtered_users, key=lambda x: x.rate, reverse=True)
 
-        respond = "Зарегистрированные участники\n\n"
+        respond = "Зарегистрированные участники:\n\n"
         for i, participant in enumerate(sorted_users, start=1):
             respond += f"{i}. {participant.username} [{participant.rate}]\n"
         return respond
@@ -163,7 +163,7 @@ class UsersDatabaseUtils:
         users = self.get_users_list()
         filtered_users = [user for user in users if user.part == '1']
         if len(filtered_users) >= limit:
-            return "Регистрация на турнир закончена - место больше нет :("
+            return "Регистрация на турнир закончена - мест больше нет :("
 
         self.add_user(user_id, username)
         self.set_user_info(user_id, 'part', 1)
@@ -184,3 +184,9 @@ class UsersDatabaseUtils:
         self.add_user(user_id, username)
         self.set_user_info(user_id, 'fcrate', str(rating))
         return f"Рейтинг обновлен! Новое значение: {rating}"
+
+    def is_registration_finished(self, limit: int):
+        users = self.get_users_list()
+        filtered_users = [user for user in users if user.part == '1']
+        return len(filtered_users) == limit
+

@@ -1,19 +1,52 @@
 from utils.group_handler import *
+from utils.spreadsheet_utils import SpreadsheetUtils
+from utils.drawer import Drawer
 
 class TournamentUtils:
-    def __init__(self, worksheet):
-        self.worksheet = worksheet
+    def __init__(self, keyfile_path: str, spreadsheet_id: str):
+        self.spreadsheet_id = spreadsheet_id
+        self.spreadsheet_utils = SpreadsheetUtils(keyfile_path)
+        self.worksheet = self._get_worksheet()
+
+    def _get_worksheet(self):
+        """Get the worksheet object."""
+        worksheet = self.spreadsheet_utils.get_worksheet(self.spreadsheet_id)
+        if not worksheet:
+            print("Problem with accessing the worksheet")
+        return worksheet
+
+    def make_groups(self, participants):
+        print(participants)
+        groups_num = len(participants) // 4
+        drawer = Drawer()
+        groups = drawer.make_group_draw(participants, groups_num)
+
+        self.write_group_schedule(groups)
+        return self.make_draw_respond(groups)
+
+    def make_draw_respond(self, groups):
+        respond = 'Результаты жеребьевки\n'
+        letter = 'A'
+        for group in groups:
+            respond += f'\nGroup {letter}\n'
+            for p in group:
+                respond += f"@{p}\n"
+            letter = chr(ord(letter) + 1)
+
+        respond += '\nСтраница для ввода результатов:\n'
+        respond += 'https://docs.google.com/spreadsheets/d/' + self.spreadsheet_id
+        return respond
 
     def write_group_schedule(self, groups):
-        all_rows = []
+        letter = 'A'
+        rows = []
         for group in groups:
-            participants = group.participants
-            for i in range(len(participants)):
-                for j in range(i + 1, len(participants)):
-                    participant1 = participants[i]
-                    participant2 = participants[j]
-                    self.append_row_multiple_times(all_rows, ['gr' + group.id, participant1, participant2], 2)
-        self.worksheet.append_rows(all_rows)
+            for i in range(len(group)):
+                for j in range(i+1,len(group)):
+                    rows.append([f'group{letter}',group[i],group[j]])
+                    rows.append([f'group{letter}',group[i],group[j]])
+            letter = chr(ord(letter) + 1)
+        self.worksheet.append_rows(rows)
 
     def write_playoff_schedule(self, stage_id, pairs):
         all_rows = []
@@ -60,11 +93,10 @@ class TournamentUtils:
         return result
 
     def get_groups_schedule(self):
-        groups = {f'group{chr(65 + i)}': Group(f'Group {chr(65 + i)}') for i in range(4)}
+        groups = {}
         for row in self.worksheet.get_all_values():
-            if row[0] in groups.keys():
+            if 'group' in row[0]:
+                if groups.get(row[0]) == None:
+                    groups[row[0]] = Group(row[0]) 
                 groups[row[0]].append_match(*row[1:])
         return groups
-
-    def register_user(self, limit):
-        pass

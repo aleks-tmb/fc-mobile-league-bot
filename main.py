@@ -4,17 +4,20 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler
 from command_handlers import (
     start_command,
     register_command,
+    next_stage_command,
     button_callback,
     set_rating_command,
     get_rating_command)
 from utils.config_utils import read_config
 from utils.config_utils import CONFIG
 from utils.users_database_utils import UsersDatabaseUtils
+from utils.tournament_utils import TournamentUtils
 
 def init_bot(token):
     print("Starting bot...")
     application = Application.builder().token(token).build()
     application.add_handler(CommandHandler("status", start_command))
+    application.add_handler(CommandHandler("nextstage", next_stage_command))
     application.add_handler(CommandHandler("registrate", register_command))
     application.add_handler(CommandHandler("setrate", set_rating_command))
     application.add_handler(CommandHandler("getrate", get_rating_command))

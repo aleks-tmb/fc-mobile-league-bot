@@ -4,7 +4,6 @@ from telegram.ext import ContextTypes
 from utils.tournament_utils import TournamentUtils
 from utils.spreadsheet_utils import SpreadsheetUtils
 from utils.users_database_utils import UsersDatabaseUtils
-from utils.drawer import Drawer
 from utils.config_utils import CONFIG
 
 async def is_user_admin(chat, user):
@@ -90,8 +89,20 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     log_user_request(user)
 
-    db = UsersDatabaseUtils(CONFIG.get('key_path'), CONFIG.get('users_db'))
-    await update.message.reply_text(db.get_registrated_users())
+    stage = CONFIG.get('stage')
+    if stage == 'REGISTRATION':
+        db = UsersDatabaseUtils(CONFIG.get('key_path'), CONFIG.get('users_db'))
+        await update.message.reply_text(db.get_registrated_users())
+    elif stage == 'GROUP':
+        tour_db = TournamentUtils(CONFIG.get('key_path'), CONFIG.get('tournament_db'))
+        groups = tour_db.get_groups_schedule()
+        full = len(context.args) == 1 and context.args[0] == 'full'
+        messages = [group.compute_table(full) for group in groups.values()]
+        respond = '\n\n'.join(messages)
+        await update.message.reply_html(f'<pre>{respond}</pre>')
+    else:
+        await update.message.reply_text("----")
+
 
 async def register_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
@@ -117,26 +128,33 @@ async def get_rating_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 async def next_stage_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
-    chat = update.message.chat
-    print(f'[register] You talk with user {user["username"]} and his user ID: {user["id"]}')
+    log_user_request(user)
 
-    if chat.type in ['group', 'supergroup']:
-        if await is_user_admin(chat, user):
-            stage = CONFIG.get('stage')
-            if stage == 'PLAY-OFF':
-                await update.message.reply_text('Погоди, идет плей-офф')
-            elif stage == 'WAIT-DRAW':
-                await update.message.reply_text('Погоди, ждем жеребьевку')
-            elif stage == 'GROUP':
-                if group_stage_finished():
-                    CONFIG['stage'] = 'WAIT-DRAW'
-                    await update.message.reply_text('Проведу жеребьевку на 7 реакций 😎', reply_markup=build_react_counter())
-                else:
-                    await update.message.reply_text('Групповой этап не завершен - не все матчи сыграны')
-        else:
-            await update.message.reply_text('Доступно только для админов')
-    else:
+    chat = update.message.chat
+
+    if chat.type not in ['group', 'supergroup']:
         await update.message.reply_text('Доступно только для группового чата')
+        return
+
+    if await is_user_admin(chat, user):
+        stage = CONFIG.get('stage')
+        if stage == 'REGISTRATION':
+            users_limit = int(CONFIG.get('users_limit'))
+            db = UsersDatabaseUtils(CONFIG.get('key_path'), CONFIG.get('users_db')) 
+            if not db.is_registration_finished(users_limit):
+                await update.message.reply_text(f'Регистрация не завершена, нам нужно {users_limit} участников')
+            else:
+                CONFIG['stage'] = 'WAIT-DRAW'
+                N = CONFIG.get('reactions_count')
+                await update.message.reply_text(f'Проведу жеребьевку на {N} реакций 😎', reply_markup=build_react_counter())
+        elif stage == 'WAIT-DRAW':
+            await update.message.reply_text('Погоди, ждем жеребьевку')
+        elif stage == 'GROUP':
+            await update.message.reply_text('Погоди, идет групповой этап')
+
+    else:
+        await update.message.reply_text('Доступно только для админов')
+        
 
 reactions = {}
 
@@ -162,10 +180,15 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     # Calculate the count of each reaction for this message
     like_count = len(reactions[message_id])
 
-    if like_count >= 7:
+    if like_count >= int(CONFIG.get('reactions_count')):
         await query.message.edit_reply_markup(reply_markup=None)
-        await query.message.reply_text(make_palyoff_draw_respond())
-        CONFIG['stage'] = 'PLAY-OFF'
+        db = UsersDatabaseUtils(CONFIG.get('key_path'), CONFIG.get('users_db'))
+        participants = db.get_users_list()
+        filtered_users = [user for user in participants if user.part == '1']
+        usernames = [user.username for user in filtered_users]
+        tour_db = TournamentUtils(CONFIG.get('key_path'), CONFIG.get('tournament_db'))
+        await query.message.reply_text(tour_db.make_groups(usernames))
+        CONFIG['stage'] = 'GROUP'
         return 
 
     new_reply_markup = build_react_counter(like_count)
