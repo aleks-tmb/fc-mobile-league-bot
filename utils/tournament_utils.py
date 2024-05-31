@@ -1,6 +1,6 @@
 from utils.group_handler import *
 
-class ScheduleIOUtils:
+class TournamentUtils:
     def __init__(self, worksheet):
         self.worksheet = worksheet
 
@@ -65,3 +65,6 @@ class ScheduleIOUtils:
             if row[0] in groups.keys():
                 groups[row[0]].append_match(*row[1:])
         return groups
+
+    def register_user(self, limit):
+        pass
