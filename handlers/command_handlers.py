@@ -86,6 +86,46 @@ def build_react_counter(like_count=0):
     keyboard = [[InlineKeyboardButton(f"🖕 {like_count}", callback_data='like')]]
     return InlineKeyboardMarkup(keyboard)
 
+def connect_to_database():
+    db = UsersDatabaseUtils()
+    if not db.connect(CONFIG.get('key_path'), CONFIG.get('users_db')):
+        raise DatabaseConnectionError("Failed to connect to the database.")
+    return db
+
+def league_rating_respond():
+    try:
+        db = connect_to_database()
+        users = db.get_users_list()
+        sorted_users = sorted(users, key=lambda x: x.rate, reverse=True)
+
+        result = "Рейтинг Лиги\n\n"
+        for i, participant in enumerate(sorted_users, start=1):
+            result += f"{i}. {participant.username} [{participant.rate}]\n"
+        return result
+    except DatabaseConnectionError as e:
+        return str(e)
+
+def set_user_rating_respond(user_id, username, rating):
+    if username is None:
+        return "Братишка, установи username в Телеге, пожалуйста :)"
+
+    try:
+        db = connect_to_database()
+        db.add_user(user_id, username)
+        try:
+            rating = int(rating)
+        except ValueError:
+            raise InvalidRatingError("Рейтинг должен быть целым числом!")
+
+        if db.set_user_info(user_id, 'fcrate', rating):
+            return f"Рейтинг обновлен: {rating}"
+        else:
+            return "Failed to update rating"
+    except DatabaseConnectionError as e:
+        return str(e)
+    except InvalidRatingError as e:
+        return str(e)
+
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     print(f'[start] You talk with user {user["username"]} and his user ID: {user["id"]}')
@@ -108,9 +148,20 @@ async def set_rating_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     user = update.message.from_user
     print(f'[set_rating] You talk with user {user["username"]} and his user ID: {user["id"]}')
     if len(context.args) != 1:
-        await update.message.reply_text("Необходимо указать свой рейтинг, например: '/setrating 123'")
+        resp = """
+Необходимо указать свой рейтинг.
+Для этого напиши команду
+/setrate 0000
+Только вместо 0000 укажи свое максимальное количество кубков за равную игру.
+"""
+        await update.message.reply_text(resp)
         return
     await update.message.reply_text(set_user_rating_respond(user["id"], user["username"], context.args[0]))
+
+async def get_rating_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.message.from_user
+    print(f'[get_rating] You talk with user {user["username"]} and his user ID: {user["id"]}')
+    await update.message.reply_text(league_rating_respond())
 
 async def next_stage_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user

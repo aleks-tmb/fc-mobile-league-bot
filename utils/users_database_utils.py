@@ -95,18 +95,20 @@ class UsersDatabaseUtils:
             print(f"User with ID {user_id} not found")
             return None
 
-    def get_participants_list(self):
+    def get_users_list(self):
         if not self.connected:
             print("Not connected to a spreadsheet. Please connect first.")
             return []
 
         participants = []
         for row in self.worksheet.get_all_values():
-            if self.get_data(row, 'part') == '1':
+            try:
                 participants.append(Participant(
                     self.get_data(row, 'username'),
                     self.get_data(row, 'fcname'),
                     self.get_data(row, 'fcrate'),
                     self.get_data(row, 'champ')
                 ))
+            except:
+                pass
         return participants
