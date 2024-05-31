@@ -1,7 +1,7 @@
 import os
 from telegram import Update
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler
-from handlers.command_handlers import (
+from command_handlers import (
     start_command,
     next_stage_command,
     button_callback,
