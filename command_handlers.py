@@ -195,3 +195,15 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     # Only update the message if the reply markup has changed
     if query.message.reply_markup != new_reply_markup:
         await query.edit_message_reply_markup(reply_markup=new_reply_markup)
+
+
+async def reply_to_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    chat_type = update.message.chat.type
+    message_text = update.message.text
+
+    # Ensure the bot responds only in group chats
+    if chat_type in ['group', 'supergroup']:
+        # Respond to tagged messages
+        BOT_USERNAME = CONFIG.get('bot_username')
+        if f'@{BOT_USERNAME}' in message_text:
+            await update.message.reply_text(f'Привет, {update.message.from_user.username}!')
