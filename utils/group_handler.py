@@ -48,7 +48,7 @@ class Group:
         self.matches = []
         self.items = []
 
-    def append_match(self, team1, team2, score):
+    def append_match(self, team1, team2, score = ""):
        self.matches.append(Match(team1, team2, score)) 
 
     def compute_table(self, add_results=True):

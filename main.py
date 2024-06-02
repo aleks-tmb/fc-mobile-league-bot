@@ -8,28 +8,26 @@ from telegram.ext import (
     filters, 
     ContextTypes)
 from command_handlers import (
-    start_command,
-    register_command,
-    next_stage_command,
+    status_command,
     button_callback,
-    set_rating_command,
-    get_rating_command,
+    button1_callback,
+    button2_callback,
     reply_to_message)
 from utils.config_utils import read_config
 from utils.config_utils import CONFIG
 from utils.users_database_utils import UsersDatabaseUtils
 from utils.tournament_utils import TournamentUtils
+from utils.spreadsheet_utils import SpreadsheetUtils
 
 def init_bot(token):
     print("Starting bot...")
     application = Application.builder().token(token).build()
-    application.add_handler(CommandHandler("status", start_command))
-    application.add_handler(CommandHandler("nextstage", next_stage_command))
-    application.add_handler(CommandHandler("registrate", register_command))
-    application.add_handler(CommandHandler("setrate", set_rating_command))
-    application.add_handler(CommandHandler("getrate", get_rating_command))
+    application.add_handler(CommandHandler("status", status_command))
     application.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), reply_to_message))
+    application.add_handler(CallbackQueryHandler(button1_callback, pattern='button1'))
+    application.add_handler(CallbackQueryHandler(button2_callback, pattern='button2'))
     application.add_handler(CallbackQueryHandler(button_callback))
+    
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 def main():
@@ -37,6 +35,10 @@ def main():
     print(CONFIG)
     init_bot(CONFIG.get('bot_token'))
 
+    # groups = tour_db.get_groups_schedule()
+    # messages = [group.compute_table(True) for group in groups.values()]
+    # respond = '\n\n'.join(messages)
+    # print(respond)
 
 if __name__ == "__main__":
     main()

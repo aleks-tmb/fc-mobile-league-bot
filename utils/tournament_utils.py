@@ -32,9 +32,6 @@ class TournamentUtils:
             for p in group:
                 respond += f"@{p}\n"
             letter = chr(ord(letter) + 1)
-
-        respond += '\nСтраница для ввода результатов:\n'
-        respond += 'https://docs.google.com/spreadsheets/d/' + self.spreadsheet_id
         return respond
 
     def write_group_schedule(self, groups):
@@ -100,3 +97,25 @@ class TournamentUtils:
                     groups[row[0]] = Group(row[0]) 
                 groups[row[0]].append_match(*row[1:])
         return groups
+
+    def write_score(self, player1, player2, score):
+        print('[write_score]',player1, player2, score)
+        found_row = None
+        for row_number, row in enumerate(self.worksheet.get_all_values(), start=1):
+            if len(row) < 3:
+                continue
+            if row[1] == player1 and row[2] == player2 and (len(row) == 3 or not row[3]):
+                found_row = row_number
+                break
+            if row[1] == player2 and row[2] == player1  and (len(row) == 3 or not row[3]):
+                score = score[1],score[0]
+                found_row = row_number
+                break
+    
+        if found_row is not None:
+            cell = self.worksheet.cell(found_row, 4)  # Assuming score is in the 4th column
+            cell.value = f"{score[0]}:{score[1]}"
+            self.worksheet.update_cells([cell])
+            return "Peзультат зафиксирован!"
+        
+        return "Матч для записи не найден"
