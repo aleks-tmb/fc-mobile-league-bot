@@ -11,7 +11,7 @@ class ScoreProcessor:
             return 'WIN'
         elif word == 'проиграл':
             return 'LOSE'
-        elif word == 'ничья' or word == 'вничью':
+        elif 'ничь' in word:
             return 'DRAW'
         return None
 

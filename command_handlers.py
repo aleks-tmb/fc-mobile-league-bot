@@ -177,7 +177,12 @@ async def process_request(message, context):
             print(op_username, score)
             await show_score_confirmation(context, message, username, op_username, score)
         else:
-            await message.reply_text(f'Я не смог разобрать результат матча, {username}')
+            respond = f'Я не смог разобрать результат матча, {username}\n'
+            respond += "Я понимаю следующие форматы:\n"
+            respond += "1) я проиграл @username 0:1\n"
+            respond += "2) я выиграл у @username 1:0\n"
+            respond += "3) я сыграл вничью с @username 1:0"
+            await message.reply_text(respond)
     elif ('статус' in message_text) or ('таблиц' in message_text):
         await show_status(message)
     elif ('зарегай' in message_text) or ('зарегистрируй' in message_text):
