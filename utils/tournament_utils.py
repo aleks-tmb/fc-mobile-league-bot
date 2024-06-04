@@ -34,6 +34,34 @@ class TournamentUtils:
             letter = chr(ord(letter) + 1)
         return respond
 
+    def make_playoff(self):
+        users = self.get_rated_list()
+
+        seed = [user.id for user in users[0:4]]
+        non_seed = [user.id for user in users[4:8]]
+
+
+        drawer = Drawer()
+        pairs = drawer.make_playoff_draw(seed, non_seed)
+        self.write_playoff_schedule('quarter', pairs)
+        return self.make_playoff_draw_respond(pairs)
+
+    
+    def make_playoff_draw_respond(self, pairs):
+        semis = []
+        result = "Жеребьевка плей-офф\n"
+        result += "1/4 финала:\n\n"
+        for pair in pairs:
+            result += "@{} - @{}\n".format(pair[0], pair[1])
+            semis.append("@{}/@{}".format(pair[0], pair[1]))
+
+        result += "\n1/2 финала:\n\n"
+        result += "{} - {}\n".format(semis[0], semis[1])
+        result += "{} - {}\n".format(semis[2], semis[3])
+
+        result += "\nУдачи!"
+        return result
+
     def write_group_schedule(self, groups):
         letter = 'A'
         rows = []
@@ -119,3 +147,27 @@ class TournamentUtils:
             return "Peзультат зафиксирован!"
         
         return "Матч для записи не найден"
+
+    def group_stage_finished(self):
+        groups = self.get_groups_schedule()
+        return all(group.all_matches_played() for group in groups.values())
+
+    def get_rated_list(self):
+        groups = self.get_groups_schedule()
+        place = 0
+        for group in groups.values():
+            group.compute_table()
+
+        result = list()
+        group_size = 4
+        for place in range(group_size):
+            items = list()
+            for group in groups.values():
+                items.append(group.items[place])
+            result += sorted(items, key=lambda x: (x.points, x.scores), reverse=True)
+        return result
+            
+
+
+
+

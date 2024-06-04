@@ -35,50 +35,6 @@ def make_results_respond(stage, full):
     except Exception as e:
         return f"Error processing stage {stage}: {e}"
 
-def group_stage_finished():
-    try:
-        spreadsheet_utils = SpreadsheetUtils(CONFIG.get('key_path'))
-        worksheet = spreadsheet_utils.get_worksheet(CONFIG.get('tournament_db'))
-        scheduler = TournamentUtils(worksheet)
-        groups = scheduler.get_groups_schedule()
-    except Exception as e:
-        return False
-    
-    return all(group.all_matches_played() for group in groups.values())
-
-def make_palyoff_draw_respond():
-    try:
-        spreadsheet_utils = SpreadsheetUtils(CONFIG.get('key_path'))
-        worksheet = spreadsheet_utils.get_worksheet(CONFIG.get('tournament_db'))
-        scheduler = TournamentUtils(worksheet)
-        groups = scheduler.get_groups_schedule()
-    except Exception as e:
-        return f"Error: {e}"
-
-    potA = []
-    potB = []
-
-    for group_id, group in groups.items():
-        group.compute_table()
-        potA.append(group.items[0].id)
-        potB.append(group.items[1].id)
-
-    drawer = Drawer()
-    pairs = drawer.make_playoff_draw(potA, potB)
-
-    semis = []
-    result = "1/4 финала:\n\n"
-    for pair in pairs:
-        result += "@{} - @{}\n".format(pair[0], pair[1])
-        semis.append("@{}/@{}".format(pair[0], pair[1]))
-
-    result += "\n1/2 финала:\n\n"
-    result += "{} - {}\n".format(semis[0], semis[1])
-    result += "{} - {}\n".format(semis[2], semis[3])
-
-    result += "\nУдачи!"
-    return result
-
 def build_react_counter(like_count=0):
     keyboard = [[InlineKeyboardButton(f"🖕 {like_count}", callback_data='like')]]
     return InlineKeyboardMarkup(keyboard)
@@ -105,6 +61,21 @@ async def get_rating_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 reactions = {}
 
+async def draw_group_stage(message):
+    await message.edit_reply_markup(reply_markup=None)
+    db = UsersDatabaseUtils(CONFIG.get('key_path'), CONFIG.get('users_db'))
+    participants = db.get_users_list()
+    filtered_users = [user for user in participants if user.part == '1']
+    usernames = [user.username for user in filtered_users]
+    tour_db = TournamentUtils(CONFIG.get('key_path'), CONFIG.get('tournament_db'))
+    await message.reply_text(tour_db.make_groups(usernames))
+    CONFIG['stage'] = 'GROUP'
+
+async def draw_playoff_stage(message):
+    tour_db = TournamentUtils(CONFIG.get('key_path'), CONFIG.get('tournament_db'))
+    await message.reply_text(tour_db.make_groups(usernames))
+    CONFIG['stage'] = 'PLAY-OFF'
+
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle inline button presses."""
     query = update.callback_query
@@ -128,14 +99,16 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     like_count = len(reactions[message_id])
 
     if like_count >= int(CONFIG.get('reactions_count')):
-        await query.message.edit_reply_markup(reply_markup=None)
-        db = UsersDatabaseUtils(CONFIG.get('key_path'), CONFIG.get('users_db'))
-        participants = db.get_users_list()
-        filtered_users = [user for user in participants if user.part == '1']
-        usernames = [user.username for user in filtered_users]
-        tour_db = TournamentUtils(CONFIG.get('key_path'), CONFIG.get('tournament_db'))
-        await query.message.reply_text(tour_db.make_groups(usernames))
-        CONFIG['stage'] = 'GROUP'
+        stage = CONFIG.get('stage')
+        if stage == 'WAIT-DRAW':
+            await draw_group_stage(query.message)
+        elif stage == 'WAIT-PLAYOFF-DRAW':
+            # await draw_playoff_stage(query.message)
+            tour_db = TournamentUtils(CONFIG.get('key_path'), CONFIG.get('tournament_db'))
+            respond = tour_db.make_playoff()
+            CONFIG['stage'] = 'PLAY-OFF'
+            await query.message.reply_text(respond)
+            
         return 
 
     new_reply_markup = build_react_counter(like_count)
@@ -213,6 +186,10 @@ async def show_status(message):
         messages = [group.compute_table(full) for group in groups.values()]
         respond = '\n\n'.join(messages)
         await message.reply_html(f'<pre>{respond}</pre>')
+    elif stage == 'PLAY-OFF':
+        tour_db = TournamentUtils(CONFIG.get('key_path'), CONFIG.get('tournament_db'))
+        respond = tour_db.get_playoff_schedule()
+        await message.reply_text(respond)
     else:
         await message.reply_text("----")
 
@@ -227,6 +204,7 @@ async def make_draw(message):
 
     if await is_user_admin(chat, user):
         stage = CONFIG.get('stage')
+        print(stage)
         if stage == 'REGISTRATION':
             users_limit = int(CONFIG.get('users_limit'))
             db = UsersDatabaseUtils(CONFIG.get('key_path'), CONFIG.get('users_db')) 
@@ -236,11 +214,18 @@ async def make_draw(message):
                 CONFIG['stage'] = 'WAIT-DRAW'
                 N = CONFIG.get('reactions_count')
                 await message.reply_text(f'Проведу жеребьевку на {N} реакций 😎', reply_markup=build_react_counter())
-        elif stage == 'WAIT-DRAW':
-            await message.reply_text('Погоди, ждем жеребьевку')
         elif stage == 'GROUP':
-            await message.reply_text('Погоди, идет групповой этап')
-
+            db = TournamentUtils(CONFIG.get('key_path'), CONFIG.get('tournament_db'))
+            if not db.group_stage_finished():
+                await message.reply_text(f'Групповой турнир не завершен - не все матчи отыграны')
+            else:
+                CONFIG['stage'] = 'WAIT-PLAYOFF-DRAW'
+                N = CONFIG.get('reactions_count')
+                await message.reply_text(f'Проведу жеребьевку на {N} реакций 😎', reply_markup=build_react_counter())
+        elif stage == 'WAIT-DRAW' or stage == 'WAIT-PLAYOFF-DRAW':
+            await message.reply_text('Ждем жеребьевку')
+        elif stage == 'PLAY-OFF':
+            await message.reply_text('Идет плей-офф')
     else:
         await message.reply_text('Доступно только для админов')
 

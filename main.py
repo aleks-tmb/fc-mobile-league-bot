@@ -39,10 +39,5 @@ def main():
     print(CONFIG)
     init_bot(CONFIG.get('bot_token'))
 
-    # groups = tour_db.get_groups_schedule()
-    # messages = [group.compute_table(True) for group in groups.values()]
-    # respond = '\n\n'.join(messages)
-    # print(respond)
-
 if __name__ == "__main__":
     main()
