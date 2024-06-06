@@ -158,7 +158,7 @@ async def process_request(message, context):
             await message.reply_text(respond)
     elif ('статус' in message_text) or ('таблиц' in message_text):
         await show_status(message)
-    elif ('зарегай' in message_text) or ('зарегистрируй' in message_text):
+    elif ('+1' == message_text):
         await registrate_user(message)
     elif 'жереб' in message_text:
         await make_draw(message)
@@ -166,9 +166,9 @@ async def process_request(message, context):
         default_respond = f'Привет, {username}! Я понимаю следующие команды, которые ты мне можешь написать:\n\n'
         default_respond += "'cтатус' - покажу текущие результаты\n\n"
         default_respond += "'полный статус' - покажу текущие результаты с деталями\n\n"
-        default_respond += "'зарегистрируй' - внесу в список участников турнира по РИ\n\n"
+        default_respond += "'+1' - внесу в список участников турнира по РИ\n\n"
         default_respond += "'жеребьевка' - проведу жеребьевку турнира по РИ\n\n"
-        default_respond += "'я выиграл/проиграл @username 2:0' - внесу результат матча в таблицу\n\n"
+        default_respond += "'я выиграл/проиграл/ничья с @username 2:0' - внесу результат матча в таблицу\n\n"
         await message.reply_text(default_respond)
 
 async def show_status(message):
