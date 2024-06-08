@@ -34,11 +34,11 @@ class TournamentUtils:
             letter = chr(ord(letter) + 1)
         return respond
 
-    def make_playoff(self):
+    def make_playoff(self, pairs_count):
         users = self.get_rated_list()
 
-        seed = [user.id for user in users[0:4]]
-        non_seed = [user.id for user in users[4:8]]
+        seed = [user.id for user in users[0:pairs_count]]
+        non_seed = [user.id for user in users[pairs_count:2*pairs_count]]
 
 
         drawer = Drawer()
@@ -49,15 +49,12 @@ class TournamentUtils:
     
     def make_playoff_draw_respond(self, pairs):
         semis = []
-        result = "Жеребьевка плей-офф\n"
-        result += "1/4 финала:\n\n"
+        result = "Жеребьевка плей-офф\n\n"
+        num = 1
         for pair in pairs:
-            result += "@{} - @{}\n".format(pair[0], pair[1])
+            result += f"{num}. @{pair[0]} - @{pair[1]}\n"
             semis.append("@{}/@{}".format(pair[0], pair[1]))
-
-        result += "\n1/2 финала:\n\n"
-        result += "{} - {}\n".format(semis[0], semis[1])
-        result += "{} - {}\n".format(semis[2], semis[3])
+            num+=1
 
         result += "\nУдачи!"
         return result

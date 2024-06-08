@@ -105,7 +105,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         elif stage == 'WAIT-PLAYOFF-DRAW':
             # await draw_playoff_stage(query.message)
             tour_db = TournamentUtils(CONFIG.get('key_path'), CONFIG.get('tournament_db'))
-            respond = tour_db.make_playoff()
+            respond = tour_db.make_playoff(int(CONFIG.get('playoff_pairs')))
             CONFIG['stage'] = 'PLAY-OFF'
             await query.message.reply_text(respond)
             
