@@ -14,27 +14,6 @@ async def is_user_admin(chat, user):
             return True
     return False
 
-def make_results_respond(stage, full):
-    try:
-        # Initialize the spreadsheet utility and scheduler
-        spreadsheet_utils = SpreadsheetUtils(CONFIG.get('key_path'))
-        worksheet = spreadsheet_utils.get_worksheet(CONFIG.get('tournament_db'))
-        scheduler = TournamentUtils(worksheet)
-    except Exception as e:
-        return f"Error: {e}"
-
-    if stage not in ['GROUP', 'PLAY-OFF']:
-        return "unknown stage"
-    
-    try:
-        if stage == 'GROUP':
-            groups = scheduler.get_groups_schedule()
-            return [group.compute_table(full) for group in groups.values()]
-        elif stage == 'PLAY-OFF':
-            return scheduler.get_playoff_schedule()
-    except Exception as e:
-        return f"Error processing stage {stage}: {e}"
-
 def build_react_counter(like_count=0):
     keyboard = [[InlineKeyboardButton(f"🖕 {like_count}", callback_data='like')]]
     return InlineKeyboardMarkup(keyboard)
@@ -264,6 +243,7 @@ async def button1_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     tour_db = TournamentUtils(CONFIG.get('key_path'), CONFIG.get('tournament_db'))
     respond = tour_db.write_score(username, op_username, score)
+    tour_db.update_playoff_path(username, op_username)
     
     # Handle the button click for the initiating user
     await query.answer()

@@ -43,21 +43,33 @@ class TournamentUtils:
 
         drawer = Drawer()
         pairs = drawer.make_playoff_draw(seed, non_seed)
-        self.write_playoff_schedule('quarter', pairs)
+        self.write_playoff_schedule(pairs)
         return self.make_playoff_draw_respond(pairs)
 
     
     def make_playoff_draw_respond(self, pairs):
-        semis = []
         result = "Жеребьевка плей-офф\n\n"
-        num = 1
-        for pair in pairs:
-            result += f"{num}. @{pair[0]} - @{pair[1]}\n"
-            semis.append("@{}/@{}".format(pair[0], pair[1]))
-            num+=1
 
-        result += "\nУдачи!"
+        # Initial matches
+        for match_num, pair in enumerate(pairs, start=1):
+            result += f"{match_num}. @{pair[0]} - @{pair[1]}\n"
+        result += '\n'
+
+        # Generate subsequent rounds
+        total_matches = len(pairs)
+        match_num = len(pairs) + 1
+        previous_round_start = 1
+
+        while total_matches > 1:
+            total_matches //= 2
+            for i in range(total_matches):
+                result += f"{match_num}. Победитель {previous_round_start + 2*i} - Победитель {previous_round_start + 2*i + 1}\n"
+                match_num += 1
+            result += '\n'
+            previous_round_start += total_matches*2
+
         return result
+
 
     def write_group_schedule(self, groups):
         letter = 'A'
@@ -70,10 +82,18 @@ class TournamentUtils:
             letter = chr(ord(letter) + 1)
         self.worksheet.append_rows(rows)
 
-    def write_playoff_schedule(self, stage_id, pairs):
+    def write_playoff_schedule(self, pairs):
         all_rows = []
-        for pair in pairs:
-            self.append_row_multiple_times(all_rows, [stage_id, pair[0], pair[1]], 3)
+        N_pairs = len(pairs)
+        for i in range(N_pairs):
+            pair = pairs[i]
+            self.append_row_multiple_times(all_rows, [f"last-{N_pairs*2}-{i}", pair[0], pair[1]], 3)
+
+        while N_pairs >= 2:
+            N_pairs = N_pairs//2
+            for i in range(N_pairs):
+                self.append_row_multiple_times(all_rows, [f"last-{N_pairs*2}-{i}", "", ""], 3)
+
         self.worksheet.append_rows(all_rows)
 
     def append_row_multiple_times(self, all_rows, row, n):
@@ -95,22 +115,22 @@ class TournamentUtils:
         return f"{player1} - {player2}"
 
     def get_playoff_schedule(self):
-        rounds = {'quarter': [], 'semi': [], 'final': [], 'third': []}
+        rounds = {'last-16': [], 'last-8': [], 'last-4': [], 'last-2': []}
         for row in self.worksheet.get_all_values():
-            round_type = row[0]
+            round_type = row[0][:-2]
             if round_type in rounds:
                 rounds[round_type].append(self.parse_row(row))
 
-        result = "1/4 финала\n\n" + '\n'.join(rounds['quarter'])
+        result = "1/8 финала\n\n" + '\n'.join(rounds['last-16'])
 
-        if rounds['semi']:
-            result += "\n\n1/2 финала\n\n" + '\n'.join(rounds['semi'])
+        if rounds['last-8']:
+            result += "\n\n1/4 финала\n\n" + '\n'.join(rounds['last-8'])
 
-        if rounds['third']:
-            result += "\n\nМатч за 3е место\n\n" + '\n'.join(rounds['third'])
+        if rounds['last-4']:
+            result += "\n\nПолуфиналы\n\n" + '\n'.join(rounds['last-4'])
 
-        if rounds['final']:
-            result += "\n\nФинал\n\n" + '\n'.join(rounds['final'])
+        if rounds['last-2']:
+            result += "\n\nФинал\n\n" + '\n'.join(rounds['last-2'])
 
         return result
 
@@ -144,6 +164,37 @@ class TournamentUtils:
             return "Peзультат зафиксирован!"
         
         return "Матч для записи не найден"
+
+    def update_playoff_path(self, player1, player2):
+        g0, g1, matches_played = 0, 0, 0
+        for row in self.worksheet.get_all_values():
+            if 'last' in row[0] and {row[1], row[2]} == {player1, player2}:
+                stage_id, match_id = row[0].split('-')[1:3]
+                match = Match(row[1], row[2], row[3])
+                if row[1] == player2 and row[2] == player1:
+                    player1, player2 = player2, player1
+
+                if match.played:
+                    matches_played += 1
+                    g0 += match.score[0]
+                    g1 += match.score[1]
+
+        if stage_id == '2':
+            return
+
+        if matches_played >= 2 and g0 != g1:
+            promoted = player1 if g0 > g1 else player2
+            next_stage = f"last-{int(stage_id) // 2}-{int(match_id) // 2}"
+            print(next_stage, promoted)
+            self.update_next_stage(next_stage, match_id, promoted)
+
+    def update_next_stage(self, next_stage, match_id, promoted):
+        for row_number, row in enumerate(self.worksheet.get_all_values(), start=1):
+            if row[0] == next_stage:
+                cell_column = 2 + int(match_id) % 2
+                cell = self.worksheet.cell(row_number, cell_column)
+                cell.value = promoted
+                self.worksheet.update_cells([cell])
 
     def group_stage_finished(self):
         groups = self.get_groups_schedule()
