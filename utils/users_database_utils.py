@@ -144,16 +144,25 @@ class UsersDatabaseUtils:
             respond += f"{i}. {participant.username} [{participant.rate}]\n"
         return respond
 
-    def get_registrated_users(self) -> str:
+    def get_registrated_users(self, limit: int) -> str:
         """Get a list of registered users."""
         users = self.get_users_list()
         filtered_users = [user for user in users if user.part == '1']
         sorted_users = sorted(filtered_users, key=lambda x: x.rate, reverse=True)
+        groups_count = limit // 4
 
-        respond = "Зарегистрированные участники:\n\n"
-        for i, participant in enumerate(sorted_users, start=1):
-            respond += f"{i}. {participant.username} [{participant.rate}]\n"
-        return respond
+        respond_lines = ["Зарегистрированные участники:\n\n"]
+        for i in range(1, limit + 1):
+            if i <= len(sorted_users):
+                participant = sorted_users[i - 1]
+                respond_lines.append(f"{i}. {participant.username} [{participant.rate}]\n")
+            else:
+                respond_lines.append(f"{i}.\n")
+
+            if i % groups_count == 0:
+                respond_lines.append('-' * 20 + '\n')
+
+        return ''.join(respond_lines)
 
     def registrate_user(self, user_id: Union[int, str], username: str, limit: int) -> str:
         if username is None:
@@ -169,18 +178,7 @@ class UsersDatabaseUtils:
         self.set_user_info(user_id, 'part', 1)
         return f"Спасибо за регистрацию, @{username}! Удачи в турнире!"
 
-    def update_user_rating(self, user_id: Union[int, str], username: str, args: List[str]):
-        if username is None:
-            return "Братишка, установи username в Телеге, пожалуйста :)"
-
-        if len(args) != 1:
-            return self.UPDATE_RATING_MESSAGE
-
-        try:
-            rating = int(args[0])
-        except ValueError:
-            return "Рейтинг должен быть целым числом!"
-
+    def update_user_rating(self, user_id: Union[int, str], username: str, rating):
         self.add_user(user_id, username)
         self.set_user_info(user_id, 'fcrate', str(rating))
         return f"Рейтинг обновлен! Новое значение: {rating}"

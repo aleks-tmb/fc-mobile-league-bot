@@ -1,4 +1,7 @@
 class ScoreProcessor:
+    WIN_WORDS = {'выиграл', 'победил', 'обыграл'}
+    LOSE_WORDS = {'проиграл', 'проебал'}
+
     def __init__(self, words):
         self.words = words
         self.result = None
@@ -7,9 +10,9 @@ class ScoreProcessor:
 
     def parse_result(self, word):
         """Parses the result word and returns the corresponding result type."""
-        if word == 'выиграл':
+        if word in self.WIN_WORDS:
             return 'WIN'
-        elif word == 'проиграл':
+        elif word in self.LOSE_WORDS:
             return 'LOSE'
         elif 'ничь' in word:
             return 'DRAW'

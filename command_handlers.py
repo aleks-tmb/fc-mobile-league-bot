@@ -24,13 +24,6 @@ def log_user_request(user, module = '-'):
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await show_status(update.message)
 
-async def set_rating_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.message.from_user
-    log_user_request(user)
-
-    db = UsersDatabaseUtils(CONFIG.get('key_path'), CONFIG.get('users_db'))
-    await update.message.reply_text(db.update_user_rating(user["id"], user["username"], context.args))
-
 async def get_rating_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     log_user_request(user)
@@ -44,10 +37,10 @@ async def draw_group_stage(message):
     await message.edit_reply_markup(reply_markup=None)
     db = UsersDatabaseUtils(CONFIG.get('key_path'), CONFIG.get('users_db'))
     participants = db.get_users_list()
-    filtered_users = [user for user in participants if user.part == '1']
-    usernames = [user.username for user in filtered_users]
+    groups_num = len(participants) // 4
+
     tour_db = TournamentUtils(CONFIG.get('key_path'), CONFIG.get('tournament_db'))
-    await message.reply_text(tour_db.make_groups(usernames))
+    await message.reply_text(tour_db.make_groups(participants, groups_num))
     CONFIG['stage'] = 'GROUP'
 
 async def draw_playoff_stage(message):
@@ -141,11 +134,14 @@ async def process_request(message, context):
         await registrate_user(message)
     elif 'жереб' in message_text:
         await make_draw(message)
+    elif ('мой' in message_text) and ('рейт' in message_text):
+        await set_rating(message)
     else:
         default_respond = f'Привет, {username}! Я понимаю следующие команды, которые ты мне можешь написать:\n\n'
         default_respond += "'cтатус' - покажу текущие результаты\n\n"
         default_respond += "'полный статус' - покажу текущие результаты с деталями\n\n"
         default_respond += "'+1' - внесу в список участников турнира по РИ\n\n"
+        default_respond += "'мой рейтинг 1234' - запишу максимальное кол-во кубков в РИ\n\n"
         default_respond += "'жеребьевка' - проведу жеребьевку турнира по РИ\n\n"
         default_respond += "'я выиграл/проиграл/ничья с @username 2:0' - внесу результат матча в таблицу\n\n"
         await message.reply_text(default_respond)
@@ -157,7 +153,8 @@ async def show_status(message):
     stage = CONFIG.get('stage')
     if stage == 'REGISTRATION':
         db = UsersDatabaseUtils(CONFIG.get('key_path'), CONFIG.get('users_db'))
-        await message.reply_text(db.get_registrated_users())
+        users_limit = int(CONFIG.get('users_limit'))
+        await message.reply_text(db.get_registrated_users(users_limit))
     elif stage == 'GROUP':
         tour_db = TournamentUtils(CONFIG.get('key_path'), CONFIG.get('tournament_db'))
         groups = tour_db.get_groups_schedule()
@@ -216,6 +213,24 @@ async def registrate_user(message):
     users_limit = int(CONFIG.get('users_limit'))
     await message.reply_text(db.registrate_user(user["id"], user["username"], users_limit))
 
+async def set_rating(message):
+    user = message.from_user
+
+    if user.username is None:
+        message.reply_text("Братишка, установи username в Телеге, пожалуйста :)")
+
+    for word in message.text.split():
+        try:
+            rating = int(word)
+            db = UsersDatabaseUtils(CONFIG.get('key_path'), CONFIG.get('users_db'))
+            await message.reply_text(db.update_user_rating(user["id"], user["username"], rating))
+            return
+        except ValueError:
+            continue
+
+    await message.reply_text("Не нашел целое число в сообщении :(")
+
+
 async def show_score_confirmation(context, message, username, op_username, score):
         keyboard = [
             [InlineKeyboardButton("Да", callback_data='button1')],
@@ -243,7 +258,10 @@ async def button1_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     tour_db = TournamentUtils(CONFIG.get('key_path'), CONFIG.get('tournament_db'))
     respond = tour_db.write_score(username, op_username, score)
-    tour_db.update_playoff_path(username, op_username)
+
+    stage = CONFIG.get('stage')
+    if stage == 'PLAY-OFF':
+        tour_db.update_playoff_path(username, op_username)
     
     # Handle the button click for the initiating user
     await query.answer()

@@ -1,3 +1,5 @@
+import random
+
 from utils.group_handler import *
 from utils.spreadsheet_utils import SpreadsheetUtils
 from utils.drawer import Drawer
@@ -15,11 +17,12 @@ class TournamentUtils:
             print("Problem with accessing the worksheet")
         return worksheet
 
-    def make_groups(self, participants):
-        print(participants)
-        groups_num = len(participants) // 4
+    def make_groups(self, participants, groups_num):
+        filtered_users = [user for user in participants if user.part == '1']
+        sorted_users = sorted(filtered_users, key=lambda x: x.rate, reverse=True)
+
         drawer = Drawer()
-        groups = drawer.make_group_draw(participants, groups_num)
+        groups = drawer.make_group_draw(sorted_users, groups_num)
 
         self.write_group_schedule(groups)
         return self.make_draw_respond(groups)
@@ -30,16 +33,16 @@ class TournamentUtils:
         for group in groups:
             respond += f'\nGroup {letter}\n'
             for p in group:
-                respond += f"@{p}\n"
+                respond += f"@{p.username} [{p.rate}]\n"
             letter = chr(ord(letter) + 1)
         return respond
 
     def make_playoff(self, pairs_count):
         users = self.get_rated_list()
-
-        seed = [user.id for user in users[0:pairs_count]]
-        non_seed = [user.id for user in users[pairs_count:2*pairs_count]]
-
+        usernames = [user.id for user in users]
+        random.shuffle(usernames)
+        seed = usernames[0:pairs_count]
+        non_seed = usernames[pairs_count:2*pairs_count]
 
         drawer = Drawer()
         pairs = drawer.make_playoff_draw(seed, non_seed)
@@ -72,14 +75,17 @@ class TournamentUtils:
 
 
     def write_group_schedule(self, groups):
-        letter = 'A'
         rows = []
-        for group in groups:
+        
+        for index, group in enumerate(groups):
+            letter = chr(ord('A') + index)
             for i in range(len(group)):
-                for j in range(i+1,len(group)):
-                    rows.append([f'group{letter}',group[i],group[j]])
-                    rows.append([f'group{letter}',group[i],group[j]])
-            letter = chr(ord(letter) + 1)
+                for j in range(i + 1, len(group)):
+                    user1 = group[i]
+                    user2 = group[j]
+                    rows.append([f'group{letter}', user1.username, user2.username])
+                    rows.append([f'group{letter}', user1.username, user2.username])
+        
         self.worksheet.append_rows(rows)
 
     def write_playoff_schedule(self, pairs):
