@@ -99,6 +99,9 @@ async def reply_to_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         BOT_USERNAME = CONFIG.get('bot_username')
         if f'@{BOT_USERNAME}' in message_text:
             await process_request(update.message, context)
+    else:
+        await update.message.reply_text('Я отвечаю только в групповом чате')
+
  
 def is_command(words, text):
     return len(words) == 1 and words[0] == text
