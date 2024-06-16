@@ -220,6 +220,13 @@ class TournamentUtils:
                 items.append(group.items[place])
             result += sorted(items, key=lambda x: (x.points, x.scores), reverse=True)
         return result
+
+    def get_history(self):
+        resp = ""
+        for row in self.worksheet.get_all_values():
+            resp += f"{row[1]}-{row[0]}\n"
+            resp += f"🥇 {row[2]}\n🥈 {row[3]}\n🥉 {row[4]}\n\n"
+        return resp
             
 
 

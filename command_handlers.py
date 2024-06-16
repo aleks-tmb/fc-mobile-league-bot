@@ -139,6 +139,8 @@ async def process_request(message, context):
         await make_draw(message)
     elif ('мой' in message_text) and ('рейт' in message_text):
         await set_rating(message)
+    elif 'истори' in message_text:
+        await show_history(message)
     else:
         default_respond = f'Привет, {username}! Я понимаю следующие команды, которые ты мне можешь написать:\n\n'
         default_respond += "'cтатус' - покажу текущие результаты\n\n"
@@ -146,6 +148,7 @@ async def process_request(message, context):
         default_respond += "'+1' - внесу в список участников турнира по РИ\n\n"
         default_respond += "'мой рейтинг 1234' - запишу максимальное кол-во кубков в РИ\n\n"
         default_respond += "'жеребьевка' - проведу жеребьевку турнира по РИ\n\n"
+        default_respond += "'история' - покажу призеров предыдущих турниров\n\n"
         default_respond += "'я выиграл/проиграл/ничья с @username 2:0' - внесу результат матча в таблицу\n\n"
         await message.reply_text(default_respond)
 
@@ -233,6 +236,11 @@ async def set_rating(message):
 
     await message.reply_text("Не нашел целое число в сообщении :(")
 
+async def show_history(message):
+    user = message.from_user
+    log_user_request(user)
+    db = TournamentUtils(CONFIG.get('key_path'), CONFIG.get('history_db'))
+    await message.reply_text(db.get_history())
 
 async def show_score_confirmation(context, message, username, op_username, score):
         keyboard = [
