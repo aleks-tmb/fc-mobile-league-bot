@@ -38,7 +38,7 @@ class TournamentUtils:
         return respond
 
     def make_playoff(self, pairs_count):
-        users = self.get_rated_list()
+        users = self.get_rated_list()[0:2*pairs_count]
         usernames = [user.id for user in users]
         random.shuffle(usernames)
         seed = usernames[0:pairs_count]
