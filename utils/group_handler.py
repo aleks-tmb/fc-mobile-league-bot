@@ -52,7 +52,7 @@ class Group:
     def append_match(self, team1, team2, score = ""):
        self.matches.append(Match(team1, team2, score)) 
        self.users.add(team1)
-       self.users.add(team1)
+       self.users.add(team2)
 
     def get_users(self):
         return self.users
