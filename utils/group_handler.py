@@ -47,9 +47,15 @@ class Group:
         self.name = name
         self.matches = []
         self.items = []
+        self.users = set()
 
     def append_match(self, team1, team2, score = ""):
        self.matches.append(Match(team1, team2, score)) 
+       self.users.add(team1)
+       self.users.add(team1)
+
+    def get_users(self):
+        return self.users
 
     def compute_table(self, add_results=True):
         items = {}

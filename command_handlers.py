@@ -3,9 +3,9 @@ from telegram.ext import ContextTypes
 
 from utils.tournament_utils import TournamentUtils
 from utils.spreadsheet_utils import SpreadsheetUtils
-from utils.users_database_utils import UsersDatabaseUtils
 from utils.config_utils import CONFIG
 from score_processor import ScoreProcessor
+from utils.users_database import UsersDatabaseCSV
 
 async def is_user_admin(chat, user):
     admins = await chat.get_administrators()
@@ -28,19 +28,19 @@ async def get_rating_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     user = update.message.from_user
     log_user_request(user)
 
-    db = UsersDatabaseUtils(CONFIG.get('key_path'), CONFIG.get('users_db'))
+    db = UsersDatabaseCSV(CONFIG.get('users_db'))
     await update.message.reply_text(db.get_rating_table())
 
 reactions = {}
 
 async def draw_group_stage(message):
-    await message.edit_reply_markup(reply_markup=None)
-    db = UsersDatabaseUtils(CONFIG.get('key_path'), CONFIG.get('users_db'))
-    participants = db.get_users_list()
-    groups_num = len(participants) // 4
+    db = UsersDatabaseCSV(CONFIG.get('users_db'))
+    CL_db = TournamentUtils(db, 'CL')
+    LE_db = TournamentUtils(db, 'EL')
 
-    tour_db = TournamentUtils(CONFIG.get('key_path'), CONFIG.get('tournament_db'))
-    await message.reply_text(tour_db.make_groups(participants, groups_num))
+    await message.edit_reply_markup(reply_markup=None)
+    await message.reply_text(CL_db.make_groups(4))
+    await message.reply_text(LE_db.make_groups(4))
     CONFIG['stage'] = 'GROUP'
 
 async def draw_playoff_stage(message):
@@ -103,10 +103,6 @@ async def reply_to_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         await update.message.reply_text('Я отвечаю только в групповом чате')
 
  
-def is_command(words, text):
-    return len(words) == 1 and words[0] == text
-
-
 async def process_request(message, context):
     username = message.from_user.username
 
@@ -123,7 +119,13 @@ async def process_request(message, context):
         if result:
             op_username, score = result
             print(op_username, score)
-            await show_score_confirmation(context, message, username, op_username, score)
+            try:
+                db = UsersDatabaseCSV(CONFIG.get('users_db'))
+                op_id = db.get_user(op_username,'username')["ID"]
+                await show_score_confirmation(db, context, message, op_id, score)
+            except KeyError:
+                await message.reply_text(f'Игрок {op_username} не найден в базе данных')
+
         else:
             respond = f'Я не смог разобрать результат матча, {username}\n'
             respond += "Я понимаю следующие форматы:\n"
@@ -133,40 +135,48 @@ async def process_request(message, context):
             await message.reply_text(respond)
     elif ('статус' in message_text) or ('таблиц' in message_text):
         await show_status(message)
-    elif ('+1' == message_text):
-        await registrate_user(message)
-    elif 'жереб' in message_text:
+    elif ('новый турнир' == message_text):
         await make_draw(message)
+    # elif 'жереб' in message_text:
+    #     await make_draw(message)
     elif ('мой' in message_text) and ('рейт' in message_text):
         await set_rating(message)
-    elif 'истори' in message_text:
-        await show_history(message)
+    # elif 'истори' in message_text:
+    #     await show_history(message)
     else:
         default_respond = f'Привет, {username}! Я понимаю следующие команды, которые ты мне можешь написать:\n\n'
         default_respond += "'cтатус' - покажу текущие результаты\n\n"
         default_respond += "'полный статус' - покажу текущие результаты с деталями\n\n"
-        default_respond += "'+1' - внесу в список участников турнира по РИ\n\n"
         default_respond += "'мой рейтинг 1234' - запишу максимальное кол-во кубков в РИ\n\n"
-        default_respond += "'жеребьевка' - проведу жеребьевку турнира по РИ\n\n"
-        default_respond += "'история' - покажу призеров предыдущих турниров\n\n"
+        # default_respond += "'жеребьевка' - проведу жеребьевку турнира по РИ\n\n"
+        default_respond += "'новый турнир' - создам групповой этап нового турнира РИ\n\n"
+        # default_respond += "'история' - покажу призеров предыдущих турниров\n\n"
         default_respond += "'я выиграл/проиграл/ничья с @username 2:0' - внесу результат матча в таблицу\n\n"
         await message.reply_text(default_respond)
 
 async def show_status(message):
-    user = message.from_user
-    log_user_request(user, 'show_status')
+    log_user_request(message.from_user, 'show_status')
 
     stage = CONFIG.get('stage')
-    if stage == 'REGISTRATION':
-        db = UsersDatabaseUtils(CONFIG.get('key_path'), CONFIG.get('users_db'))
-        users_limit = int(CONFIG.get('users_limit'))
-        await message.reply_text(db.get_registrated_users(users_limit))
-    elif stage == 'GROUP':
-        tour_db = TournamentUtils(CONFIG.get('key_path'), CONFIG.get('tournament_db'))
-        groups = tour_db.get_groups_schedule()
+    if stage == 'GROUP':
+        db = UsersDatabaseCSV(CONFIG.get('users_db'))
+        try:
+            player = db.get_user(message.from_user["id"])
+        except KeyError:
+            await message.reply_text("Вас нет в базе данных Лиги!")
+            return
+
+        user_league = player['league']
+        if user_league != 'CL' and user_league != 'EL':
+            await message.reply_text("На нашел вас в списке участников турниров!")
+            return
+        
+        league_db = TournamentUtils(db, user_league)  
         full = 'полн' in message.text.lower()
-        messages = [group.compute_table(full) for group in groups.values()]
-        respond = '\n\n'.join(messages)
+        if full:
+            respond = league_db.show_all_tables(False)
+        else:
+            respond = league_db.show_user_table(player['username'])
         await message.reply_html(f'<pre>{respond}</pre>')
     elif stage == 'PLAY-OFF':
         tour_db = TournamentUtils(CONFIG.get('key_path'), CONFIG.get('tournament_db'))
@@ -187,37 +197,26 @@ async def make_draw(message):
     if await is_user_admin(chat, user):
         stage = CONFIG.get('stage')
         print(stage)
-        if stage == 'REGISTRATION':
-            users_limit = int(CONFIG.get('users_limit'))
-            db = UsersDatabaseUtils(CONFIG.get('key_path'), CONFIG.get('users_db')) 
-            if not db.is_registration_finished(users_limit):
-                await message.reply_text(f'Регистрация не завершена, нам нужно {users_limit} участников')
-            else:
-                CONFIG['stage'] = 'WAIT-DRAW'
-                N = CONFIG.get('reactions_count')
-                await message.reply_text(f'Проведу жеребьевку на {N} реакций 😎', reply_markup=build_react_counter())
-        elif stage == 'GROUP':
-            db = TournamentUtils(CONFIG.get('key_path'), CONFIG.get('tournament_db'))
-            if not db.group_stage_finished():
-                await message.reply_text(f'Групповой турнир не завершен - не все матчи отыграны')
-            else:
-                CONFIG['stage'] = 'WAIT-PLAYOFF-DRAW'
-                N = CONFIG.get('reactions_count')
-                await message.reply_text(f'Проведу жеребьевку на {N} реакций 😎', reply_markup=build_react_counter())
-        elif stage == 'WAIT-DRAW' or stage == 'WAIT-PLAYOFF-DRAW':
-            await message.reply_text('Ждем жеребьевку')
-        elif stage == 'PLAY-OFF':
-            await message.reply_text('Идет плей-офф')
+        if stage == 'NEW':
+            CONFIG['stage'] = 'WAIT-DRAW'
+            N = CONFIG.get('reactions_count')
+            await message.reply_text(f'Проведу жеребьевку на {N} реакций 😎', reply_markup=build_react_counter())
+        else:
+            await message.reply_text('Текущий турнир не завершен')
+        # elif stage == 'GROUP':
+        #     db = TournamentUtils(CONFIG.get('key_path'), CONFIG.get('tournament_db'))
+        #     if not db.group_stage_finished():
+        #         await message.reply_text(f'Групповой турнир не завершен - не все матчи отыграны')
+        #     else:
+        #         CONFIG['stage'] = 'WAIT-PLAYOFF-DRAW'
+        #         N = CONFIG.get('reactions_count')
+        #         await message.reply_text(f'Проведу жеребьевку на {N} реакций 😎', reply_markup=build_react_counter())
+        # elif stage == 'WAIT-DRAW' or stage == 'WAIT-PLAYOFF-DRAW':
+        #     await message.reply_text('Ждем жеребьевку')
+        # elif stage == 'PLAY-OFF':
+        #     await message.reply_text('Идет плей-офф')
     else:
         await message.reply_text('Доступно только для админов')
-
-async def registrate_user(message):
-    user = message.from_user
-    log_user_request(user)
-
-    db = UsersDatabaseUtils(CONFIG.get('key_path'), CONFIG.get('users_db'))
-    users_limit = int(CONFIG.get('users_limit'))
-    await message.reply_text(db.registrate_user(user["id"], user["username"], users_limit))
 
 async def set_rating(message):
     user = message.from_user
@@ -228,8 +227,15 @@ async def set_rating(message):
     for word in message.text.split():
         try:
             rating = int(word)
-            db = UsersDatabaseUtils(CONFIG.get('key_path'), CONFIG.get('users_db'))
-            await message.reply_text(db.update_user_rating(user["id"], user["username"], rating))
+            db = UsersDatabaseCSV(CONFIG.get('users_db'))
+            try:
+                player = db.get_user(user["id"])
+                player["rate"] = rating
+                db.update_user(player)
+                respond = f"{user.username}, новый рейтинг {rating} записан!"
+            except KeyError:
+                respond = f"{user.username} Не найден в базе данных!"
+            await message.reply_text(respond)
             return
         except ValueError:
             continue
@@ -242,53 +248,54 @@ async def show_history(message):
     db = TournamentUtils(CONFIG.get('key_path'), CONFIG.get('history_db'))
     await message.reply_text(db.get_history())
 
-async def show_score_confirmation(context, message, username, op_username, score):
-        keyboard = [
-            [InlineKeyboardButton("Да", callback_data='button1')],
-            [InlineKeyboardButton("Нет", callback_data='button2')]
-        ]
-        context.user_data['init_user_id'] = message.from_user.id
-        context.user_data['record'] = (username, op_username, score)
-        context.user_data['clicked'] = False
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        await message.reply_text(f'@{username} {score[0]}:{score[1]} @{op_username}', reply_markup=reply_markup)
+async def show_score_confirmation(db, context, message, op_id, score):
+    user_id = message.from_user.id
+    s = f"{user_id}_{op_id}_{score[0]}_{score[1]}"
+    print(s)
+    keyboard = [
+        [InlineKeyboardButton("Да", callback_data=f'confirm_yes_{s}')],
+        [InlineKeyboardButton("Нет", callback_data=f'confirm_no_{s}')]
+    ]
+    
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    username = db.get_username_by_id(user_id)
+    op_username = db.get_username_by_id(op_id)
+    await message.reply_text(
+        f'@{username} {score[0]}:{score[1]} @{op_username}', 
+        reply_markup=reply_markup
+    )
 
-async def button1_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def score_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     user = query.from_user
-    init_user_id = context.user_data.get('init_user_id')
+
+    callback_data = query.data.split('_')
+    action = callback_data[1]
+    id_main = int(callback_data[2])
+    id1 = int(callback_data[3])
+    g0 = int(callback_data[4])
+    g1 = int(callback_data[5])
+
     # Check if the user is the initiating user
-    if user.id != init_user_id:
-        await query.answer(text=f"Вы не можете подтвердить это действие", show_alert=True)
+    if user.id != id_main:
+        await query.answer(text="Вы не можете отменить это действие", show_alert=True)
         return
 
-    (username, op_username, score) =  context.user_data.get('record')
-    if context.user_data.get('clicked'):
+    if action == 'no':
+        await query.answer()
+        await query.edit_message_text(text="Отменяю!")
         return
-    context.user_data['clicked'] = True
-
-    tour_db = TournamentUtils(CONFIG.get('key_path'), CONFIG.get('tournament_db'))
-    respond = tour_db.write_score(username, op_username, score)
-
-    stage = CONFIG.get('stage')
-    if stage == 'PLAY-OFF':
-        tour_db.update_playoff_path(username, op_username)
     
-    # Handle the button click for the initiating user
+    # Assuming you have a configuration variable CONFIG defined somewhere
+    db = UsersDatabaseCSV(CONFIG.get('users_db'))
+    user2 = db.get_user(id1)
+    user_league = user2.get('league', '')
+
+    if user_league not in ['CL', 'EL']:
+        respond = "Игрок не участвует в турнирах"
+    else:
+        tour_db = TournamentUtils(db, user_league)
+        respond = tour_db.write_score(id_main, id1, (g0, g1))
+    
     await query.answer()
     await query.edit_message_text(text=respond)
-
-async def button2_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    query = update.callback_query
-    user = query.from_user
-    init_user_id = context.user_data.get('init_user_id')
-
-    # Check if the user is the initiating user
-    if user.id != init_user_id:
-        await query.answer(text=f"Вы не можете отменить это действие", show_alert=True)
-        return
-
-    # Handle the button click for the initiating user
-    await query.answer()
-    await query.edit_message_text(text="Отменяю!")
-

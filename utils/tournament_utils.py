@@ -1,41 +1,86 @@
 import random
+import csv
 
 from utils.group_handler import *
 from utils.spreadsheet_utils import SpreadsheetUtils
 from utils.drawer import Drawer
 
 class TournamentUtils:
-    def __init__(self, keyfile_path: str, spreadsheet_id: str):
-        self.spreadsheet_id = spreadsheet_id
-        self.spreadsheet_utils = SpreadsheetUtils(keyfile_path)
-        self.worksheet = self._get_worksheet()
+    def __init__(self, db, league_id):
+        self.db = db        
+        self.league_id = league_id
+        self.file_path = f'database/{league_id}.csv'
+        if league_id == 'CL':
+            self.name = 'Лига Чемпионов'
+        else:
+            self.name = 'Лига Европы'
 
-    def _get_worksheet(self):
-        """Get the worksheet object."""
-        worksheet = self.spreadsheet_utils.get_worksheet(self.spreadsheet_id)
-        if not worksheet:
-            print("Problem with accessing the worksheet")
-        return worksheet
-
-    def make_groups(self, participants, groups_num):
-        filtered_users = [user for user in participants if user.part == '1']
-        sorted_users = sorted(filtered_users, key=lambda x: x.rate, reverse=True)
-
+    def make_groups(self, groups_num):
+        users = self.db.get_all_users()
+        filtered_users = [user for user in users if user['league'] == self.league_id]        
+        sorted_users = sorted(filtered_users, key=lambda x: x['rate'], reverse=True)
+        ids = [user['ID'] for user in sorted_users]
+        
         drawer = Drawer()
-        groups = drawer.make_group_draw(sorted_users, groups_num)
-
+        groups = drawer.make_group_draw(ids, groups_num)
         self.write_group_schedule(groups)
         return self.make_draw_respond(groups)
 
+    def write_group_schedule(self, groups):
+        rows = []
+        for index, group in enumerate(groups):
+            letter = chr(ord('A') + index)
+            for i in range(len(group)):
+                for j in range(i + 1, len(group)):
+                    user1 = self.db.get_user(group[i])
+                    user2 = self.db.get_user(group[j])
+                    rows.append([f'group{letter}', user1['ID'], user2['ID'],''])
+                    rows.append([f'group{letter}', user1['ID'], user2['ID'],''])
+
+        with open(self.file_path, mode='w', newline='') as file:            
+            writer = csv.writer(file)
+            writer.writerows(rows)
+
     def make_draw_respond(self, groups):
-        respond = 'Результаты жеребьевки\n'
+        respond = f'{self.name}\n'
         letter = 'A'
         for group in groups:
             respond += f'\nGroup {letter}\n'
-            for p in group:
-                respond += f"@{p.username} [{p.rate}]\n"
+            for id in group:
+                user = self.db.get_user(id)
+                respond += f"@{user['username']} [{user['rate']}]\n"
             letter = chr(ord(letter) + 1)
         return respond
+
+    def get_groups(self):
+        groups = {}
+        with open(self.file_path, mode='r', newline='') as file: 
+            reader = csv.reader(file)
+            for row in reader:
+                if 'group' in row[0]:
+                    if groups.get(row[0]) == None:
+                        groups[row[0]] = Group(row[0]) 
+                    team1 = self.db.get_username_by_id(row[1])
+                    team2 = self.db.get_username_by_id(row[2])
+                    if len(row) > 3:
+                        score = row[3]
+                    else:
+                        score = "" 
+                    groups[row[0]].append_match(team1, team2, score)
+        return groups
+    
+    def show_all_tables(self, full = False):
+        groups = self.get_groups()
+        messages = [group.compute_table(full) for group in groups.values()]
+        return f"{self.name}\n\n" + '\n\n'.join(messages)      
+
+    def show_user_table(self, user_id):
+        groups = self.get_groups()
+        for group in groups.values():
+            print(group.get_users())
+            if user_id in group.get_users():
+                return f"{self.name}\n\n" + group.compute_table(False) 
+        return 'Группа не найдена'  
 
     def make_playoff(self, pairs_count):
         users = self.get_rated_list()[0:2*pairs_count]
@@ -72,21 +117,6 @@ class TournamentUtils:
             previous_round_start += total_matches*2
 
         return result
-
-
-    def write_group_schedule(self, groups):
-        rows = []
-        
-        for index, group in enumerate(groups):
-            letter = chr(ord('A') + index)
-            for i in range(len(group)):
-                for j in range(i + 1, len(group)):
-                    user1 = group[i]
-                    user2 = group[j]
-                    rows.append([f'group{letter}', user1.username, user2.username])
-                    rows.append([f'group{letter}', user1.username, user2.username])
-        
-        self.worksheet.append_rows(rows)
 
     def write_playoff_schedule(self, pairs):
         all_rows = []
@@ -140,36 +170,38 @@ class TournamentUtils:
 
         return result
 
-    def get_groups_schedule(self):
-        groups = {}
-        for row in self.worksheet.get_all_values():
-            if 'group' in row[0]:
-                if groups.get(row[0]) == None:
-                    groups[row[0]] = Group(row[0]) 
-                groups[row[0]].append_match(*row[1:])
-        return groups
+    def write_score(self, id1, id2, score):
+        print('[write_score]', id1, id2, score)
+        rows, found_match = [], False
 
-    def write_score(self, player1, player2, score):
-        print('[write_score]',player1, player2, score)
-        found_row = None
-        for row_number, row in enumerate(self.worksheet.get_all_values(), start=1):
-            if len(row) < 3:
-                continue
-            if row[1] == player1 and row[2] == player2 and (len(row) == 3 or not row[3]):
-                found_row = row_number
-                break
-            if row[1] == player2 and row[2] == player1  and (len(row) == 3 or not row[3]):
-                score = score[1],score[0]
-                found_row = row_number
-                break
-    
-        if found_row is not None:
-            cell = self.worksheet.cell(found_row, 4)  # Assuming score is in the 4th column
-            cell.value = f"{score[0]}:{score[1]}"
-            self.worksheet.update_cells([cell])
-            return "Peзультат зафиксирован!"
-        
-        return "Матч для записи не найден"
+        try:
+            with open(self.file_path, mode='r', newline='') as file:
+                reader = csv.reader(file)
+                for row in reader:
+                    if found_match or row[3] != '':
+                        rows.append(row)
+                        continue
+
+                    row_id1, row_id2 = int(row[1]), int(row[2])
+                    if (row_id1 == id1 and row_id2 == id2):
+                        row[3] = f"{score[0]}:{score[1]}"
+                        found_match = True
+                    elif (row_id1 == id2 and row_id2 == id1):
+                        row[3] = f"{score[1]}:{score[0]}"
+                        found_match = True
+                    rows.append(row)
+
+            if not found_match:
+                return "Матч для записи не найден"
+
+            with open(self.file_path, mode='w', newline='') as file:
+                csv.writer(file).writerows(rows)
+
+            return "Результат зафиксирован!"
+        except FileNotFoundError:
+            return "Файл не найден"
+        except Exception as e:
+            return f"Произошла ошибка: {str(e)}"
 
     def update_playoff_path(self, player1, player2):
         g0, g1, matches_played = 0, 0, 0

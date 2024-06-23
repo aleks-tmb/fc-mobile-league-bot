@@ -12,8 +12,8 @@ class Drawer:
     def split_list(self, lst, n):
         return [lst[i:i + n] for i in range(0, len(lst), n)]
 
-    def make_group_draw(self, participants, number_of_groups):
-        pots = self.split_list(participants, number_of_groups)
+    def make_group_draw(self, ids, number_of_groups):
+        pots = self.split_list(ids, number_of_groups)
         pots = [set(pot) for pot in pots]
         groups = [[] for _ in range(number_of_groups)]
 
