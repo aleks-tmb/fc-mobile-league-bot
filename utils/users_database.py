@@ -24,7 +24,10 @@ class UsersDatabaseCSV:
         raise KeyError(f"User with {key_type} = {key} not found.")
 
     def get_username_by_id(self, user_id):
-        return self.get_user(user_id)['username']
+        try:
+            return self.get_user(user_id)['username']
+        except:
+            return ""
 
     def get_id_by_username(self, username):
         return self.get_user(username,'username')['ID']

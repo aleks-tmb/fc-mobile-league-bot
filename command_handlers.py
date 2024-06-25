@@ -201,20 +201,20 @@ async def make_draw(message):
             CONFIG['stage'] = 'WAIT-DRAW'
             N = CONFIG.get('reactions_count')
             await message.reply_text(f'Проведу жеребьевку на {N} реакций 😎', reply_markup=build_react_counter())
-        else:
-            await message.reply_text('Текущий турнир не завершен')
-        # elif stage == 'GROUP':
-        #     db = TournamentUtils(CONFIG.get('key_path'), CONFIG.get('tournament_db'))
-        #     if not db.group_stage_finished():
-        #         await message.reply_text(f'Групповой турнир не завершен - не все матчи отыграны')
-        #     else:
-        #         CONFIG['stage'] = 'WAIT-PLAYOFF-DRAW'
-        #         N = CONFIG.get('reactions_count')
-        #         await message.reply_text(f'Проведу жеребьевку на {N} реакций 😎', reply_markup=build_react_counter())
-        # elif stage == 'WAIT-DRAW' or stage == 'WAIT-PLAYOFF-DRAW':
-        #     await message.reply_text('Ждем жеребьевку')
-        # elif stage == 'PLAY-OFF':
-        #     await message.reply_text('Идет плей-офф')
+        elif stage == 'GROUP':
+            db = UsersDatabaseCSV(CONFIG.get('users_db'))
+            CL_db = TournamentUtils(db, 'CL')
+            LE_db = TournamentUtils(db, 'EL')   
+            if CL_db.group_stage_finished() and LE_db.group_stage_finished():
+                CONFIG['stage'] = 'WAIT-PLAYOFF-DRAW'
+                N = CONFIG.get('reactions_count')
+                await message.reply_text(f'Проведу жеребьевку на {N} реакций 😎', reply_markup=build_react_counter())
+            else:
+                await message.reply_text(f'Групповой турнир не завершен - не все матчи отыграны')
+        elif stage == 'WAIT-DRAW' or stage == 'WAIT-PLAYOFF-DRAW':
+            await message.reply_text('Ждем жеребьевку')
+        elif stage == 'PLAY-OFF':
+            await message.reply_text('Идет плей-офф')
     else:
         await message.reply_text('Доступно только для админов')
 

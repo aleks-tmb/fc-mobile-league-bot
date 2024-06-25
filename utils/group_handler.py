@@ -1,7 +1,7 @@
 class Match:
     def __init__(self, player0, player1, score):
-        self.player0 = player0
-        self.player1 = player1
+        self.id0 = player0
+        self.id1 = player1
         self.played = False
         self.score = score
         self.parse_score(score)
@@ -14,10 +14,12 @@ class Match:
         except ValueError:
             pass
 
-    def __str__(self): 
+    def to_string(self, db): 
+        player0 = db.get_username_by_id(self.id0)
+        player1 = db.get_username_by_id(self.id1)
         if self.played:
-            return f"{self.player0} {self.score[0]}:{self.score[1]} {self.player1}"
-        return f"{self.player0} - {self.player1}"
+            return f"{player0} {self.score[0]}:{self.score[1]} {player1}"
+        return f"{player0} - {player1}"
 
 class Item:
     def __init__(self, id):
@@ -59,15 +61,15 @@ class Group:
     def get_users(self):
         return self.users
 
-    def compute_table(self, add_results=True):
+    def compute_table(self, db, add_results=True):
         items = {}
 
         for match in self.matches:
-            items.setdefault(match.player0, Item(match.player0))
-            items.setdefault(match.player1, Item(match.player1))
+            items.setdefault(match.id0, Item(match.id0))
+            items.setdefault(match.id1, Item(match.id1))
             if match.played:
-                items[match.player0].update(*match.score)
-                items[match.player1].update(*reversed(match.score))
+                items[match.id0].update(*match.score)
+                items[match.id1].update(*reversed(match.score))
 
         self.items = sorted(items.values(), key=lambda x: (x.points, (x.scored - x.conceded), x.scored), reverse=True)
 
@@ -75,15 +77,16 @@ class Group:
         result += '-'*26 + '\n'
         for num, item in enumerate(self.items, start=1):
             diff = f"{item.scored}-{item.conceded}"
-            result += f"{num} {item.id[:13]:13}{item.games:2}{item.points:3} {diff}\n"
+            username = db.get_username_by_id(item.id)[:13]
+            result += f"{num} {username:13}{item.games:2}{item.points:3} {diff}\n"
 
         if add_results:
-            result += '\n' + self.get_matches_list()
+            result += '\n' + self.get_matches_list(db)
 
         return result
 
-    def get_matches_list(self):
-        return "\n".join(str(match) for match in self.matches)
+    def get_matches_list(self, db):
+        return "\n".join(match.to_string(db) for match in self.matches)
 
     def all_matches_played(self):
         return all(match.played for match in self.matches)
