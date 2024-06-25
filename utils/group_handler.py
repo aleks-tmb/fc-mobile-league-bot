@@ -26,12 +26,14 @@ class Item:
         self.wins = 0
         self.draws = 0
         self.losses = 0
-        self.scores = 0
+        self.scored = 0
+        self.conceded = 0
         self.points = 0
 
     def update(self, my_score, opponent_score):
         self.games += 1
-        self.scores += my_score - opponent_score
+        self.scored += my_score
+        self.conceded += opponent_score
 
         if my_score > opponent_score:
             self.wins += 1
@@ -67,12 +69,13 @@ class Group:
                 items[match.player0].update(*match.score)
                 items[match.player1].update(*reversed(match.score))
 
-        self.items = sorted(items.values(), key=lambda x: (x.points, x.scores), reverse=True)
+        self.items = sorted(items.values(), key=lambda x: (x.points, (x.scored - x.conceded), x.scored), reverse=True)
 
         result = f"{self.name}   [игры,очки,голы]\n"
         result += '-'*26 + '\n'
         for num, item in enumerate(self.items, start=1):
-            result += f"{num} {item.id[:15]:15}{item.games:2}{item.points:3}{item.scores:+4d}\n"
+            diff = f"{item.scored}-{item.conceded}"
+            result += f"{num} {item.id[:13]:13}{item.games:2}{item.points:3} {diff}\n"
 
         if add_results:
             result += '\n' + self.get_matches_list()
