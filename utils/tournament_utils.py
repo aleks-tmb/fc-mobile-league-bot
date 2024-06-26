@@ -77,7 +77,7 @@ class TournamentUtils:
                         score = row[3]
                     else:
                         score = "" 
-                    groups[row[0]].append_match(row[1], row[2], score)
+                    groups[row[0]].append_match(int(row[1]), int(row[2]), score)
         return groups
     
     def show_all_tables(self, full = False):
