@@ -191,11 +191,16 @@ class TournamentUtils:
             with open(self.file_path, mode='r', newline='') as file:
                 reader = csv.reader(file)
                 for row in reader:
+                    print(row)
                     if found_match or row[3] != '':
                         rows.append(row)
                         continue
+                    try:
+                        row_id1, row_id2 = int(row[1]), int(row[2])
+                    except Exception:
+                        rows.append(row)
+                        continue
 
-                    row_id1, row_id2 = int(row[1]), int(row[2])
                     if (row_id1 == id1 and row_id2 == id2):
                         row[3] = f"{score[0]}:{score[1]}"
                         found_match = True
