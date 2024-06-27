@@ -191,7 +191,6 @@ class TournamentUtils:
             with open(self.file_path, mode='r', newline='') as file:
                 reader = csv.reader(file)
                 for row in reader:
-                    print(row)
                     if found_match or row[3] != '':
                         rows.append(row)
                         continue

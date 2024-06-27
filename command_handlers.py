@@ -112,6 +112,7 @@ async def process_request(message, context):
         return
     words = words[1:]
     message_text = ' '.join(words)
+    message_text = message_text.lower()
     print(message_text)
 
     if '@' in message_text:
@@ -134,7 +135,7 @@ async def process_request(message, context):
             respond += "2) я выиграл у @username 1:0\n"
             respond += "3) я сыграл вничью с @username 1:0"
             await message.reply_text(respond)
-    elif 'статус ЛЕ' == message_text or 'статус ЛЧ' == message_text:
+    elif 'статус ле' == message_text or 'статус лч' == message_text:
         await show_status(message)
     elif ('новый турнир' == message_text):
         await make_draw(message)
