@@ -235,6 +235,7 @@ async def set_rating(message):
             rating = int(word)
             db = UsersDatabaseCSV(CONFIG.get('users_db'))
             try:
+                db.add_user(user.id, user.username)           
                 player = db.get_user(user["id"])
                 player["rate"] = rating
                 db.update_user(player)

@@ -33,7 +33,14 @@ class UsersDatabaseCSV:
         return self.get_user(username,'username')['ID']
 
 
-    def add_user(self, user):        
+    def add_user(self, id, username):
+        user = {
+            "ID": id,
+            "username": username,
+            "rate": 0,
+            "league": ""
+        }          
+
         user_id = user.get('ID')
         if user_id is None:
             raise ValueError("User data must contain an 'ID' field.")
