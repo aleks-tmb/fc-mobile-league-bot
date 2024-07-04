@@ -18,12 +18,15 @@ class TournamentUtils:
         self._read_data()
 
     def _read_data(self):
-        with open(self.file_path, mode='r', newline='') as file:
-            reader = csv.DictReader(file)
-            self.data = [row for row in reader]
-            for row in self.data:
-                row['id0'] = int(row['id0'])
-                row['id1'] = int(row['id1'])
+        try:
+            with open(self.file_path, mode='r', newline='') as file:
+                reader = csv.DictReader(file)
+                self.data = [row for row in reader]
+                for row in self.data:
+                    row['id0'] = int(row['id0'])
+                    row['id1'] = int(row['id1'])
+        except:
+            return
 
     def _save_data(self):
         """Writes the current data to the CSV file."""
