@@ -90,3 +90,15 @@ class UsersDatabaseCSV:
         for i, participant in enumerate(sorted_users, start=1):
             respond += f"{i}. {participant['username']} [{participant['rate']}]\n"
         return respond
+    
+    def update_rating(self, id, username, rating):
+        try:         
+            player = self.get_user(id)
+        except KeyError:
+            self.add_user(id, username) 
+            player = self.get_user(id)
+
+        player["rate"] = rating
+        player["username"] = username
+        self.update_user(player)
+        return f"{username}, новый рейтинг {rating} записан!" 

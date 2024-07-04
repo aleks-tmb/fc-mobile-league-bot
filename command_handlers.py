@@ -236,18 +236,12 @@ async def set_rating(message):
     if user.username is None:
         message.reply_text("Братишка, установи username в Телеге, пожалуйста :)")
 
+    db = UsersDatabaseCSV(CONFIG.get('users_db'))
+
     for word in message.text.split():
         try:
-            rating = int(word)
-            db = UsersDatabaseCSV(CONFIG.get('users_db'))
-            try:
-                db.add_user(user.id, user.username)           
-                player = db.get_user(user["id"])
-                player["rate"] = rating
-                db.update_user(player)
-                respond = f"{user.username}, новый рейтинг {rating} записан!"
-            except KeyError:
-                respond = f"{user.username} Не найден в базе данных!"
+            rating = int(word)        
+            respond = db.update_rating(user.id, user.username, rating)
             await message.reply_text(respond)
             return
         except ValueError:
