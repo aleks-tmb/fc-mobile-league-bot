@@ -167,7 +167,7 @@ async def show_status(message, full = True):
         return
 
     if full:
-        if 'ле' in message.text:
+        if 'ле' in message.text.lower():
             user_league = 'EL'
         else:
             user_league = 'CL'
