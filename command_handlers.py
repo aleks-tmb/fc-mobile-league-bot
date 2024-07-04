@@ -180,7 +180,12 @@ async def show_status(message, full = True):
     league_db = TournamentUtils(db, user_league)
     stage = CONFIG.get('stage')
 
-    if stage == 'GROUP':      
+    if stage == 'NEW':
+        CL_db = TournamentUtils(db, 'CL')
+        EL_db = TournamentUtils(db, 'EL')
+        await message.reply_text(CL_db.get_participants())
+        await message.reply_text(EL_db.get_participants())
+    elif stage == 'GROUP':      
         if full:
             respond = league_db.show_all_tables(False)
         else:

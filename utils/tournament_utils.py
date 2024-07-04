@@ -14,21 +14,34 @@ class TournamentUtils:
             self.name = 'Лига Чемпионов'
         else:
             self.name = 'Лига Европы'
+        self.data = []
+        self._read_data()
 
     def _read_data(self):
-        rows = []
-        with open(self.file_path, newline='') as csvfile:
-            reader = csv.reader(csvfile)
-            for row in reader:
-                rows.append(row)
-        return rows
+        with open(self.file_path, mode='r', newline='') as file:
+            reader = csv.DictReader(file)
+            self.data = [row for row in reader]
+            for row in self.data:
+                row['id0'] = int(row['id0'])
+                row['id1'] = int(row['id1'])
 
-    def _save_data(self, rows):
-        with open(self.file_path, mode='w', newline='') as csvfile:            
-            writer = csv.writer(csvfile)
-            writer.writerows(rows)
+    def _save_data(self):
+        """Writes the current data to the CSV file."""
+        with open(self.file_path, mode='w', newline='') as file:
+            if self.data:
+                fieldnames = self.data[0].keys()
+                writer = csv.DictWriter(file, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(self.data)
+
+    def _add_record(self, tag, id0, id1, score = ''):
+        self.data.append({
+            "tag": tag,
+            "id0": int(id0),
+            "id1": int(id1),
+            "score": score
+        })
 #---------------------------------------------------------------------------------#
-
     def make_groups(self, groups_num):
         users = self.db.get_all_users()
         filtered_users = [user for user in users if user['league'] == self.league_id]        
@@ -41,17 +54,14 @@ class TournamentUtils:
         return self.make_draw_respond(groups)
 
     def write_group_schedule(self, groups):
-        rows = []
+        self.data.clear()
         for index, group in enumerate(groups):
             letter = chr(ord('A') + index)
             for i in range(len(group)):
                 for j in range(i + 1, len(group)):
-                    user1 = self.db.get_user(group[i])
-                    user2 = self.db.get_user(group[j])
-                    rows.append([f'group{letter}', user1['ID'], user2['ID'],''])
-                    rows.append([f'group{letter}', user1['ID'], user2['ID'],''])
-
-        self._save_data(rows)
+                    self._add_record(f'group{letter}', group[i], group[j])
+                    self._add_record(f'group{letter}', group[i], group[j])
+        self._save_data()
 
     def make_draw_respond(self, groups):
         respond = f'{self.name}\n'
@@ -67,17 +77,12 @@ class TournamentUtils:
 #---------------------------------------------------------------------------------#
     def get_groups(self):
         groups = {}
-        with open(self.file_path, mode='r', newline='') as file: 
-            reader = csv.reader(file)
-            for row in reader:
-                if 'group' in row[0]:
-                    if groups.get(row[0]) == None:
-                        groups[row[0]] = Group(row[0]) 
-                    if len(row) > 3:
-                        score = row[3]
-                    else:
-                        score = "" 
-                    groups[row[0]].append_match(int(row[1]), int(row[2]), score)
+        for row in self.data:
+            tag = row['tag']
+            if 'group' in tag:
+                if groups.get(tag) == None:
+                    groups[tag] = Group(tag)  
+                groups[tag].append_match(row['id0'], row['id1'], row['score'])
         return groups
     
     def show_all_tables(self, full = False):
@@ -183,42 +188,25 @@ class TournamentUtils:
 
         return result
 
-    def write_score(self, id1, id2, score):
-        print('[write_score]', id1, id2, score)
-        rows, found_match = [], False
+    def write_score(self, id0, id1, score):
+        print('[write_score]', id0, id1, score)
 
-        try:
-            with open(self.file_path, mode='r', newline='') as file:
-                reader = csv.reader(file)
-                for row in reader:
-                    if found_match or row[3] != '':
-                        rows.append(row)
-                        continue
-                    try:
-                        row_id1, row_id2 = int(row[1]), int(row[2])
-                    except Exception:
-                        rows.append(row)
-                        continue
+        for row in self.data:
+            if row['score']:
+                continue
 
-                    if (row_id1 == id1 and row_id2 == id2):
-                        row[3] = f"{score[0]}:{score[1]}"
-                        found_match = True
-                    elif (row_id1 == id2 and row_id2 == id1):
-                        row[3] = f"{score[1]}:{score[0]}"
-                        found_match = True
-                    rows.append(row)
+            if (row['id0'] == id0 and row['id1'] == id1):
+                row['score'] = f"{score[0]}:{score[1]}"
+                break
+            
+            if (row['id0'] == id1 and row['id1'] == id0):
+                row['score'] = f"{score[1]}:{score[0]}"
+                break        
+        else:
+            return "Матч для записи не найден"
 
-            if not found_match:
-                return "Матч для записи не найден"
-
-            with open(self.file_path, mode='w', newline='') as file:
-                csv.writer(file).writerows(rows)
-
-            return "Результат зафиксирован!"
-        except FileNotFoundError:
-            return "Файл не найден"
-        except Exception as e:
-            return f"Произошла ошибка: {str(e)}"
+        self._save_data()
+        return "Результат зафиксирован!"
 
     def update_playoff_path(self, player1, player2):
         g0, g1, matches_played = 0, 0, 0
@@ -270,6 +258,15 @@ class TournamentUtils:
                 items.append(group.items[place])
             result += sorted(items, key=lambda x: (x.points, (x.scored - x.conceded), x.scored), reverse=True)
         return result
+
+    def get_participants(self):
+        users = self.db.get_all_users()
+        filtered_users = [user for user in users if user['league'] == self.league_id]        
+        sorted_users = sorted(filtered_users, key=lambda x: x['rate'], reverse=True)
+        respond = f'{self.name}. Список участников\n\n'
+        for user in sorted_users:
+            respond += f"{user['username']} [{user['rate']}]\n"
+        return respond
 
     # def get_history(self):
     #     resp = ""

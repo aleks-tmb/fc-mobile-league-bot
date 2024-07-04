@@ -35,8 +35,5 @@ def main():
     print(CONFIG) 
     init_bot(CONFIG.get('bot_token'))
 
-
-
-
 if __name__ == "__main__":
     main()
