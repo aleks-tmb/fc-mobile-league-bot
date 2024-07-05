@@ -40,8 +40,8 @@ class TournamentUtils:
     def _add_record(self, tag, id0, id1, score = ''):
         self.data.append({
             "tag": tag,
-            "id0": int(id0),
-            "id1": int(id1),
+            "id0": id0,
+            "id1": id1,
             "score": score
         })
 #---------------------------------------------------------------------------------#
@@ -141,22 +141,21 @@ class TournamentUtils:
         return result
 
     def write_playoff_schedule(self, pairs):
-        rows = self._read_data()
         N_pairs = len(pairs)
         for i in range(N_pairs):
             pair = pairs[i]
-            self.append_row_multiple_times(rows, [f"last-{N_pairs*2}-{i}", pair[0], pair[1], ""], 3)
+            self._add_record(f"last-{N_pairs*2}-{i}", pair[0], pair[1])
+            self._add_record(f"last-{N_pairs*2}-{i}", pair[0], pair[1])
 
         while N_pairs >= 2:
             N_pairs = N_pairs//2
             for i in range(N_pairs):
-                self.append_row_multiple_times(rows, [f"last-{N_pairs*2}-{i}", "", "", ""], 3)
+                self._add_record(f"last-{N_pairs*2}-{i}", "", "")
+                self._add_record(f"last-{N_pairs*2}-{i}", "", "")
 
-        self._save_data(rows)
-
-    def append_row_multiple_times(self, all_rows, row, n):
-        for _ in range(n):
-            all_rows.append(row)
+        self._add_record(f"third", "", "")
+        self._add_record(f"third", "", "")
+        self._save_data()
 
     def parse_score(self, score):
         try:
@@ -166,19 +165,20 @@ class TournamentUtils:
             return None
 
     def parse_row(self, row):
-        player1 = self.db.get_username_by_id(row[1]) 
-        player2 = self.db.get_username_by_id(row[2])
-        score = self.parse_score(row[3])
+        player1 = self.db.get_username_by_id(row['id0']) 
+        player2 = self.db.get_username_by_id(row['id1'])
+        score = self.parse_score(row['score'])
         if score:
             return f"{player1} {score[0]}:{score[1]} {player2}"
         return f"{player1} - {player2}"
 
     def get_playoff_schedule(self):
-        rounds = {'last-8': [], 'last-4': [], 'last-2': []}
-        for row in self._read_data():
-            round_type = row[0][:-2]
-            if round_type in rounds:
-                rounds[round_type].append(self.parse_row(row))
+        rounds = {'last-8': [], 'last-4': [], 'last-2': [], 'third': []}
+        for row in self.data:
+            for tag in rounds:
+                if tag in row['tag']:
+                    rounds[tag].append(self.parse_row(row))
+                    break
 
         result = f"{self.name}\n"
         result += "1/4 финала\n\n" + '\n'.join(rounds['last-8'])
@@ -188,6 +188,9 @@ class TournamentUtils:
 
         if rounds['last-2']:
             result += "\n\nФинал\n\n" + '\n'.join(rounds['last-2'])
+
+        if rounds['third']:
+            result += "\nМатч за третье место\n\n" + '\n'.join(rounds['third'])        
 
         return result
 
@@ -249,18 +252,23 @@ class TournamentUtils:
 
     def get_rated_list(self):
         groups = self.get_groups()
-        place = 0
         for group in groups.values():
             group.compute_table(self.db)
 
-        result = list()
-        group_size = 4
-        for place in range(group_size):
-            items = list()
+        result = []
+
+        max_group_size = max(len(group.items) for group in groups.values()) 
+        # Collect and sort items from each group
+        for place in range(max_group_size):
+            items = []
             for group in groups.values():
-                items.append(group.items[place])
-            result += sorted(items, key=lambda x: (x.points, (x.scored - x.conceded), x.scored), reverse=True)
+                if place < len(group.items):
+                    items.append(group.items[place])
+            sorted_items = sorted(items, key=lambda x: (x.points, x.scored - x.conceded, x.scored), reverse=True)
+            result.extend(sorted_items)
+        
         return result
+        
 
     def get_participants(self):
         users = self.db.get_all_users()
