@@ -2,7 +2,6 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
 from utils.tournament_utils import TournamentUtils
-from utils.spreadsheet_utils import SpreadsheetUtils
 from utils.config_utils import CONFIG
 from score_processor import ScoreProcessor
 from utils.users_database import UsersDatabaseCSV

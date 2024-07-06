@@ -16,7 +16,6 @@ from command_handlers import (
 from utils.config_utils import read_config
 from utils.config_utils import CONFIG
 from utils.tournament_utils import TournamentUtils
-from utils.spreadsheet_utils import SpreadsheetUtils
 
 from utils.users_database import UsersDatabaseCSV
 

@@ -2,7 +2,6 @@ import random
 import csv
 
 from utils.group_handler import *
-from utils.spreadsheet_utils import SpreadsheetUtils
 from utils.drawer import Drawer
 
 class TournamentUtils:
