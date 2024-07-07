@@ -17,13 +17,17 @@ class TournamentUtils:
         self._read_data()
 
     def _read_data(self):
+        print('_read_data')
         try:
             with open(self.file_path, mode='r', newline='') as file:
                 reader = csv.DictReader(file)
                 self.data = [row for row in reader]
                 for row in self.data:
-                    row['id0'] = int(row['id0'])
-                    row['id1'] = int(row['id1'])
+                    try:
+                        row['id0'] = int(row['id0'])
+                        row['id1'] = int(row['id1'])
+                    except:
+                        continue
         except:
             return
 
@@ -36,13 +40,14 @@ class TournamentUtils:
                 writer.writeheader()
                 writer.writerows(self.data)
 
-    def _add_record(self, tag, id0, id1, score = ''):
-        self.data.append({
-            "tag": tag,
-            "id0": id0,
-            "id1": id1,
-            "score": score
-        })
+    def _add_record(self, tag, id0, id1, score = '', times = 1):
+        for _ in range(times):
+            self.data.append({
+                "tag": tag,
+                "id0": id0,
+                "id1": id1,
+                "score": score
+            })
 #---------------------------------------------------------------------------------#   
     def get_stage(self):
         if not self.data:
@@ -85,8 +90,7 @@ class TournamentUtils:
             letter = chr(ord('A') + index)
             for i in range(len(group)):
                 for j in range(i + 1, len(group)):
-                    self._add_record(f'group{letter}', group[i], group[j])
-                    self._add_record(f'group{letter}', group[i], group[j])
+                    self._add_record(f'group{letter}', group[i], group[j], '', 2)
         self._save_data()
 
     def make_draw_respond(self, groups):
@@ -167,17 +171,14 @@ class TournamentUtils:
         N_pairs = len(pairs)
         for i in range(N_pairs):
             pair = pairs[i]
-            self._add_record(f"last-{N_pairs*2}-{i}", pair[0], pair[1])
-            self._add_record(f"last-{N_pairs*2}-{i}", pair[0], pair[1])
+            self._add_record(f"last-{N_pairs*2}-{i}", pair[0], pair[1], '', 3)
 
         while N_pairs >= 2:
             N_pairs = N_pairs//2
             for i in range(N_pairs):
-                self._add_record(f"last-{N_pairs*2}-{i}", "", "")
-                self._add_record(f"last-{N_pairs*2}-{i}", "", "")
+                self._add_record(f"last-{N_pairs*2}-{i}", "", "", '', 3)
 
-        self._add_record(f"third", "", "")
-        self._add_record(f"third", "", "")
+        self._add_record(f"third", "", "", '', 3)
         self._save_data()
 
     def parse_score(self, score):
@@ -219,6 +220,7 @@ class TournamentUtils:
 
     def write_score(self, id0, id1, score):
         print('[write_score]', id0, id1, score)
+        self._read_data()
 
         for row in self.data:
             if row['score']:
@@ -235,20 +237,23 @@ class TournamentUtils:
             return "Матч для записи не найден"
 
         self._save_data()
+
+        if self.get_stage() == 'PLAY-OFF':
+            self.update_playoff_path(id0, id1)
+
         return "Результат зафиксирован!"
 
-    def update_playoff_path(self, player1, player2):
+    def update_playoff_path(self, id0, id1):
         g0, g1, matches_played = 0, 0, 0
         stage_id = None
-        player1, player2 = str(player1), str(player2)
-
-        rows = self._read_data()
-        for row in rows:
-            if 'last' in row[0] and {row[1], row[2]} == {player1, player2}:
-                stage_id, match_id = row[0].split('-')[1:3]
-                match = Match(int(row[1]), int(row[2]), row[3])
-                if row[1] == player2 and row[2] == player1:
-                    player1, player2 = player2, player1
+  
+        self._read_data()
+        for row in self.data:
+            if 'last' in row['tag'] and {row['id0'], row['id1']} == {id0, id1}:
+                stage_id, match_id = row['tag'].split('-')[1:3]
+                match = Match(row['id0'], row['id1'], row['score'])
+                if row['id0'] == id1 and row['id1'] == id0:
+                    id0, id1 = id1, id0
 
                 if match.played:
                     matches_played += 1
@@ -259,14 +264,23 @@ class TournamentUtils:
             return
 
         if matches_played >= 2 and g0 != g1:
-            promoted = player1 if g0 > g1 else player2
+            promoted, loser = (id0, id1) if g0 > g1 else (id1, id0)
             match_id = int(match_id)
-            next_stage = f"last-{int(stage_id) // 2}-{match_id // 2}"
+            stage_id = int(stage_id)
+            next_stage = f"last-{stage_id // 2}-{match_id // 2}"
             print(next_stage, promoted, match_id)
-            for row in rows:
-                if row[0] == next_stage:
-                    row[1 + match_id % 2] = promoted
-            self._save_data(rows)
+            for row in self.data:
+                if row['tag'] == next_stage:
+                    id = 'id0' if match_id % 2 == 0 else 'id1'
+                    row[id] = promoted
+
+            if stage_id == 4:
+                for row in self.data:
+                    if row['tag'] == 'third':
+                        id = 'id0' if match_id % 2 == 0 else 'id1'
+                        row[id] = loser
+
+            self._save_data()
             
 
     def group_stage_finished(self):

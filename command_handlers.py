@@ -279,8 +279,6 @@ async def score_confirm_callback(update: Update, context: ContextTypes.DEFAULT_T
     else:
         tour_db = TournamentUtils(db, user_league, 27)
         respond = tour_db.write_score(id_main, id1, (g0, g1))
-        # if CONFIG['stage'] == 'PLAY-OFF':
-        #     tour_db.update_playoff_path(id_main, id1)
     
     await query.answer()
     await query.edit_message_text(text=respond)
