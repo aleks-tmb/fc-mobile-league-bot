@@ -13,7 +13,12 @@ async def is_user_admin(chat, user):
             return True
     return False
 
+reactions = {}
+draw_in_progress = False
+
 def build_react_counter(like_count=0):
+    global draw_in_progress
+    draw_in_progress = True
     keyboard = [[InlineKeyboardButton(f"🖕 {like_count}", callback_data='like')]]
     return InlineKeyboardMarkup(keyboard)
 
@@ -21,7 +26,22 @@ def log_user_request(user, module = '-'):
     print(f'[{module.upper()}] You talk with user {user["username"]} and his user ID: {user["id"]}')
 
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await show_status(update.message, False)
+    db = UsersDatabaseCSV(CONFIG.get('users_db')) 
+    user_id = None
+    tag = None
+         
+    try:
+        player = db.get_user(update.message.from_user["id"])  
+        if player['league'] in ['CL', 'EL']:
+            user_id = player['ID']
+            tag = player['league']
+    except KeyError:
+        pass  
+  
+    if tag is None:
+        tag = 'CL'
+
+    await show_status(update.message, tag, user_id)
 
 async def get_rating_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
@@ -30,17 +50,25 @@ async def get_rating_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     db = UsersDatabaseCSV(CONFIG.get('users_db'))
     await update.message.reply_text(db.get_rating_table())
 
-reactions = {}
 
-async def draw_group_stage(message):
+async def perform_draw(message):
     db = UsersDatabaseCSV(CONFIG.get('users_db'))
-    CL_db = TournamentUtils(db, 'CL')
-    LE_db = TournamentUtils(db, 'EL')
+    CL_db = TournamentUtils(db, 'CL', 27)
+    LE_db = TournamentUtils(db, 'EL', 27)
+    stage = CL_db.get_stage()
+    print(stage)
 
+    if stage == 'NOT-STARTED':
+        await message.reply_text(CL_db.make_groups(4))
+        await message.reply_text(LE_db.make_groups(4))
+    elif stage == 'GROUP':          
+        await message.reply_text(CL_db.make_playoff(int(CONFIG.get('playoff_pairs'))))
+        await message.reply_text(LE_db.make_playoff(int(CONFIG.get('playoff_pairs'))))
+    
     await message.edit_reply_markup(reply_markup=None)
-    await message.reply_text(CL_db.make_groups(4))
-    await message.reply_text(LE_db.make_groups(4))
-    CONFIG['stage'] = 'GROUP'
+    global draw_in_progress
+    draw_in_progress = False
+
 
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle inline button presses."""
@@ -51,7 +79,6 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     if not user:
         return
 
-    reaction = query.data
     message_id = query.message.message_id
 
     # Initialize reactions for this message if not present
@@ -65,19 +92,7 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     like_count = len(reactions[message_id])
 
     if like_count >= int(CONFIG.get('reactions_count')):
-        stage = CONFIG.get('stage')
-        if stage == 'WAIT-DRAW':
-            await draw_group_stage(query.message)
-        elif stage == 'WAIT-PLAYOFF-DRAW':
-            db = UsersDatabaseCSV(CONFIG.get('users_db'))
-            CL_db = TournamentUtils(db, 'CL')
-            LE_db = TournamentUtils(db, 'EL')            
-            cl_respond = CL_db.make_playoff(int(CONFIG.get('playoff_pairs')))
-            le_respond = LE_db.make_playoff(int(CONFIG.get('playoff_pairs')))
-            CONFIG['stage'] = 'PLAY-OFF'
-            await query.message.reply_text(cl_respond)
-            await query.message.reply_text(le_respond)
-            
+        await perform_draw(query.message)
         return 
 
     new_reply_markup = build_react_counter(like_count)
@@ -135,11 +150,10 @@ async def process_request(message, context):
             respond += "3) я сыграл вничью с @username 1:0"
             await message.reply_text(respond)
     elif 'статус ле' == message_text or 'статус лч' == message_text:
-        await show_status(message)
-    elif ('новый турнир' == message_text):
-        await make_draw(message)
+        tag = 'CL' if 'ле' not in message_text else 'EL'
+        await show_status(message, tag)        
     elif 'жереб' in message_text:
-        await make_draw(message)
+        await init_draw(message)
     elif ('мой' in message_text) and ('рейт' in message_text):
         await set_rating(message)
     # elif 'истори' in message_text:
@@ -150,82 +164,51 @@ async def process_request(message, context):
         default_respond += "'статус ЛЧ' - результаты Лиги Чемпионов\n\n"
         default_respond += "'мой рейтинг 1234' - запишу максимальное кол-во кубков в РИ\n\n"
         default_respond += "'жеребьевка' - проведу жеребьевку турнира по РИ\n\n"
-        default_respond += "'новый турнир' - создам групповой этап нового турнира РИ\n\n"
         # default_respond += "'история' - покажу призеров предыдущих турниров\n\n"
         default_respond += "'я выиграл/проиграл/ничья с @username 2:0' - внесу результат матча в таблицу\n\n"
         await message.reply_text(default_respond)
 
-async def show_status(message, full = True):
+
+
+async def show_status(message, tag, user_id = None):
     log_user_request(message.from_user, 'show_status')
 
     db = UsersDatabaseCSV(CONFIG.get('users_db'))
-    try:
-        player = db.get_user(message.from_user["id"])
-    except KeyError:
-        await message.reply_text("Вас нет в базе данных Лиги!")
-        return
+    league_db = TournamentUtils(db, tag, 27)
+    respond = league_db.get_status(user_id)
+    await message.reply_html(f'<pre>{respond}</pre>')
 
-    if full:
-        if 'ле' in message.text.lower():
-            user_league = 'EL'
-        else:
-            user_league = 'CL'
-    else:
-        user_league = player['league']
-        if user_league != 'CL' and user_league != 'EL':
-            await message.reply_text("На нашел вас в списке участников турниров!")
-            return
-    
-    league_db = TournamentUtils(db, user_league)
-    stage = CONFIG.get('stage')
 
-    if stage == 'NEW':
-        CL_db = TournamentUtils(db, 'CL')
-        EL_db = TournamentUtils(db, 'EL')
-        await message.reply_text(CL_db.get_participants())
-        await message.reply_text(EL_db.get_participants())
-    elif stage == 'GROUP':      
-        if full:
-            respond = league_db.show_all_tables(False)
-        else:
-            respond = league_db.show_user_table(player['ID'])
-        await message.reply_html(f'<pre>{respond}</pre>')
-    elif stage == 'PLAY-OFF':
-        respond = league_db.get_playoff_schedule()
-        await message.reply_text(respond)
-    else:
-        await message.reply_text("----")
-
-async def make_draw(message):
+async def init_draw(message):
     user = message.from_user
     chat = message.chat
     log_user_request(user)
+
+    if draw_in_progress:
+        return
 
     if chat.type not in ['group', 'supergroup']:
         await message.reply_text('Доступно только для группового чата')
         return
 
     if await is_user_admin(chat, user):
-        stage = CONFIG.get('stage')
+        db = UsersDatabaseCSV(CONFIG.get('users_db'))
+        CL_db = TournamentUtils(db, 'CL', 27)
+        LE_db = TournamentUtils(db, 'EL', 27)
+        stage = CL_db.get_stage()
         print(stage)
-        if stage == 'NEW':
-            CONFIG['stage'] = 'WAIT-DRAW'
-            N = CONFIG.get('reactions_count')
+
+        N = CONFIG.get('reactions_count')
+
+        if stage == 'NOT-STARTED':
             await message.reply_text(f'Проведу жеребьевку турнира на {N} реакций 😎', reply_markup=build_react_counter())
-        elif stage == 'GROUP':
-            db = UsersDatabaseCSV(CONFIG.get('users_db'))
-            CL_db = TournamentUtils(db, 'CL')
-            LE_db = TournamentUtils(db, 'EL')   
+        elif stage == 'GROUP':  
             if CL_db.group_stage_finished() and LE_db.group_stage_finished():
-                CONFIG['stage'] = 'WAIT-PLAYOFF-DRAW'
-                N = CONFIG.get('reactions_count')
                 await message.reply_text(f'Проведу жеребьевку плей-офф на {N} реакций 😎', reply_markup=build_react_counter())
             else:
                 await message.reply_text(f'Групповой турнир не завершен - не все матчи отыграны')
-        elif stage == 'WAIT-DRAW' or stage == 'WAIT-PLAYOFF-DRAW':
-            await message.reply_text('Ждем жеребьевку')
-        elif stage == 'PLAY-OFF':
-            await message.reply_text('Идет плей-офф')
+        else:
+            await message.reply_text('Турнир не завершен')
     else:
         await message.reply_text('Доступно только для админов')
 
@@ -294,10 +277,10 @@ async def score_confirm_callback(update: Update, context: ContextTypes.DEFAULT_T
     if user_league not in ['CL', 'EL']:
         respond = "Игрок не участвует в турнирах"
     else:
-        tour_db = TournamentUtils(db, user_league)
+        tour_db = TournamentUtils(db, user_league, 27)
         respond = tour_db.write_score(id_main, id1, (g0, g1))
-        if CONFIG['stage'] == 'PLAY-OFF':
-            tour_db.update_playoff_path(id_main, id1)
+        # if CONFIG['stage'] == 'PLAY-OFF':
+        #     tour_db.update_playoff_path(id_main, id1)
     
     await query.answer()
     await query.edit_message_text(text=respond)

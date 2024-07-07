@@ -5,11 +5,11 @@ from utils.group_handler import *
 from utils.drawer import Drawer
 
 class TournamentUtils:
-    def __init__(self, db, league_id):
-        self.db = db        
-        self.league_id = league_id
-        self.file_path = f'database/{league_id}.csv'
-        if league_id == 'CL':
+    def __init__(self, db, tag, id):
+        self.db = db 
+        self.league_tag = tag       
+        self.file_path = f'database/{tag}-{id}.csv'
+        if 'CL' in tag:
             self.name = 'Лига Чемпионов'
         else:
             self.name = 'Лига Европы'
@@ -43,12 +43,36 @@ class TournamentUtils:
             "id1": id1,
             "score": score
         })
+#---------------------------------------------------------------------------------#   
+    def get_stage(self):
+        if not self.data:
+            return 'NOT-STARTED'
+
+        if any('last' in row['tag'] for row in self.data):
+            return 'PLAY-OFF'
+
+        return 'GROUP'      
+#---------------------------------------------------------------------------------#
+    def get_status(self, user_id = None):
+        stage = self.get_stage()
+        
+        if stage == 'NOT-STARTED':
+            return 'Турнир еще не стартовал'
+
+        if stage == 'PLAY-OFF':
+            return self.get_playoff_schedule()
+
+        if user_id is None:
+            return self.show_all_tables()
+        else:
+            return self.show_user_table(user_id)
 #---------------------------------------------------------------------------------#
     def make_groups(self, groups_num):
         users = self.db.get_all_users()
-        filtered_users = [user for user in users if user['league'] == self.league_id]        
+        filtered_users = [user for user in users if user['league'] == self.league_tag]        
         sorted_users = sorted(filtered_users, key=lambda x: x['rate'], reverse=True)
         ids = [user['ID'] for user in sorted_users]
+        print(ids)
         
         drawer = Drawer()
         groups = drawer.make_group_draw(ids, groups_num)
@@ -271,7 +295,7 @@ class TournamentUtils:
 
     def get_participants(self):
         users = self.db.get_all_users()
-        filtered_users = [user for user in users if user['league'] == self.league_id]        
+        filtered_users = [user for user in users if user['league'] == self.league_tag]        
         sorted_users = sorted(filtered_users, key=lambda x: x['rate'], reverse=True)
         respond = f'{self.name}. Список участников\n\n'
         for user in sorted_users:
