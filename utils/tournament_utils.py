@@ -40,14 +40,19 @@ class TournamentUtils:
                 writer.writeheader()
                 writer.writerows(self.data)
 
-    def _add_record(self, tag, id0, id1, score = '', times = 1):
-        for _ in range(times):
-            self.data.append({
+    def _add_record(self, tag, id0, id1, index=None):
+            new_record = {
+                "ID": len(self.data),
                 "tag": tag,
                 "id0": id0,
                 "id1": id1,
-                "score": score
-            })
+                "score": ''
+            }
+            if index is None:
+                self.data.append(new_record)
+            else:
+                self.data.insert(index + 1, new_record)
+
 #---------------------------------------------------------------------------------#   
     def get_stage(self):
         if not self.data:
@@ -73,6 +78,9 @@ class TournamentUtils:
             return self.show_user_table(user_id)
 #---------------------------------------------------------------------------------#
     def make_groups(self, groups_num):
+        if self.get_stage() != 'NOT-STARTED':
+            return 'Турнир уже стартовал'
+                
         users = self.db.get_all_users()
         filtered_users = [user for user in users if user['league'] == self.league_tag]        
         sorted_users = sorted(filtered_users, key=lambda x: x['rate'], reverse=True)
@@ -90,7 +98,8 @@ class TournamentUtils:
             letter = chr(ord('A') + index)
             for i in range(len(group)):
                 for j in range(i + 1, len(group)):
-                    self._add_record(f'group{letter}', group[i], group[j], '', 2)
+                    self._add_record(f'group{letter}', group[i], group[j])
+                    self._add_record(f'group{letter}', group[i], group[j])
         self._save_data()
 
     def make_draw_respond(self, groups):
@@ -129,6 +138,9 @@ class TournamentUtils:
         return 'Группа не найдена'  
 
     def make_playoff(self, pairs_count):
+        if self.get_stage() == 'PLAY-OFF':
+            return 'Плей-офф уже идет'
+        
         users = self.get_rated_list()[:2*pairs_count]
         ids = [user.id for user in users]
         print(ids)
@@ -171,14 +183,17 @@ class TournamentUtils:
         N_pairs = len(pairs)
         for i in range(N_pairs):
             pair = pairs[i]
-            self._add_record(f"last-{N_pairs*2}-{i}", pair[0], pair[1], '', 3)
+            self._add_record(f"last-{N_pairs*2}-{i}", pair[0], pair[1])
+            self._add_record(f"last-{N_pairs*2}-{i}", pair[0], pair[1])
 
         while N_pairs >= 2:
             N_pairs = N_pairs//2
             for i in range(N_pairs):
-                self._add_record(f"last-{N_pairs*2}-{i}", "", "", '', 3)
+                self._add_record(f"last-{N_pairs*2}-{i}", "", "")
+                self._add_record(f"last-{N_pairs*2}-{i}", "", "")
 
-        self._add_record(f"third", "", "", '', 3)
+        self._add_record(f"third", "", "")
+        self._add_record(f"third", "", "")
         self._save_data()
 
     def parse_score(self, score):
@@ -244,45 +259,77 @@ class TournamentUtils:
         return "Результат зафиксирован!"
 
     def update_playoff_path(self, id0, id1):
-        g0, g1, matches_played = 0, 0, 0
-        stage_id = None
-  
         self._read_data()
+        matches_played, g0, g1, last_row = self._analyze_matches(id0, id1)
+
+        if matches_played < 2:
+            return
+        
+        tag = last_row['tag']
+        if tag == 'last-2-0' or tag == 'third':
+            return 
+
+        try:
+            stage_id, match_id = tag.split('-')[1:3]
+            stage_id = int(stage_id)
+            match_id = int(match_id)
+        except:
+            return
+
+        if g0 == g1:
+            self._handle_tie(last_row)
+        else:
+            self._handle_winner(stage_id, match_id, last_row['id0'], last_row['id1'], g0, g1)
+
+        self._save_data()
+
+    def _analyze_matches(self, id0, id1):
+        g0, g1, matches_played = 0, 0, 0
+        last_row = None
+
         for row in self.data:
             if 'last' in row['tag'] and {row['id0'], row['id1']} == {id0, id1}:
-                stage_id, match_id = row['tag'].split('-')[1:3]
                 match = Match(row['id0'], row['id1'], row['score'])
-                if row['id0'] == id1 and row['id1'] == id0:
-                    id0, id1 = id1, id0
 
                 if match.played:
                     matches_played += 1
                     g0 += match.score[0]
                     g1 += match.score[1]
+                    last_row = row
 
-        if stage_id == '2':
-            return
+        return matches_played, g0, g1, last_row
 
-        if matches_played >= 2 and g0 != g1:
-            promoted, loser = (id0, id1) if g0 > g1 else (id1, id0)
-            match_id = int(match_id)
-            stage_id = int(stage_id)
-            next_stage = f"last-{stage_id // 2}-{match_id // 2}"
-            print(next_stage, promoted, match_id)
-            for row in self.data:
-                if row['tag'] == next_stage:
-                    id = 'id0' if match_id % 2 == 0 else 'id1'
-                    row[id] = promoted
+    def _adjust_ids(self, row, id0, id1):
+        if row['id0'] == id1 and row['id1'] == id0:
+            return id1, id0
+        return id0, id1
 
-            if stage_id == 4:
-                for row in self.data:
-                    if row['tag'] == 'third':
-                        id = 'id0' if match_id % 2 == 0 else 'id1'
-                        row[id] = loser
+    def _handle_tie(self, last_row):
+        index = self.data.index(last_row)
+        self._add_record(last_row['tag'], last_row['id0'], last_row['id1'], index)
 
-            self._save_data()
+    def _handle_winner(self, stage_id, match_id, id0, id1, g0, g1):
+        promoted, loser = (id0, id1) if g0 > g1 else (id1, id0)
+        next_stage = self._next_stage_tag(stage_id, match_id)
+        id_key = 'id0' if match_id % 2 == 0 else 'id1'
+
+        for row in self.data:
+            if row['tag'] == next_stage:
+                row[id_key] = promoted
+
+        if int(stage_id) == 4:
+            self._assign_loser_to_third_place(loser, id_key)
+
+    def _next_stage_tag(self, stage_id, match_id):
+        stage_id = int(stage_id)
+        match_id = int(match_id)
+        return f"last-{stage_id // 2}-{match_id // 2}"
+
+    def _assign_loser_to_third_place(self, loser, id_key):
+        for row in self.data:
+            if row['tag'] == 'third':
+                row[id_key] = loser
             
-
     def group_stage_finished(self):
         groups = self.get_groups()
         return all(group.all_matches_played() for group in groups.values())

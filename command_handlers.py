@@ -6,6 +6,11 @@ from utils.config_utils import CONFIG
 from score_processor import ScoreProcessor
 from utils.users_database import UsersDatabaseCSV
 
+def getLeagueDatabase(tag):
+    db = UsersDatabaseCSV(CONFIG.get('users_db'))
+    return TournamentUtils(db, tag, CONFIG.get('tour_number'))
+
+
 async def is_user_admin(chat, user):
     admins = await chat.get_administrators()
     for admin in admins:
@@ -52,9 +57,8 @@ async def get_rating_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 async def perform_draw(message):
-    db = UsersDatabaseCSV(CONFIG.get('users_db'))
-    CL_db = TournamentUtils(db, 'CL', 27)
-    LE_db = TournamentUtils(db, 'EL', 27)
+    CL_db = getLeagueDatabase('CL')
+    LE_db = getLeagueDatabase('EL')
     stage = CL_db.get_stage()
     print(stage)
 
@@ -173,8 +177,7 @@ async def process_request(message, context):
 async def show_status(message, tag, user_id = None):
     log_user_request(message.from_user, 'show_status')
 
-    db = UsersDatabaseCSV(CONFIG.get('users_db'))
-    league_db = TournamentUtils(db, tag, 27)
+    league_db = getLeagueDatabase(tag)
     respond = league_db.get_status(user_id)
     await message.reply_html(f'<pre>{respond}</pre>')
 
@@ -192,9 +195,8 @@ async def init_draw(message):
         return
 
     if await is_user_admin(chat, user):
-        db = UsersDatabaseCSV(CONFIG.get('users_db'))
-        CL_db = TournamentUtils(db, 'CL', 27)
-        LE_db = TournamentUtils(db, 'EL', 27)
+        CL_db = getLeagueDatabase('CL')
+        LE_db = getLeagueDatabase('EL')
         stage = CL_db.get_stage()
         print(stage)
 
@@ -271,13 +273,12 @@ async def score_confirm_callback(update: Update, context: ContextTypes.DEFAULT_T
     
     # Assuming you have a configuration variable CONFIG defined somewhere
     db = UsersDatabaseCSV(CONFIG.get('users_db'))
-    user2 = db.get_user(id1)
-    user_league = user2.get('league', '')
+    tag = db.get_user(id_main)['league']
 
-    if user_league not in ['CL', 'EL']:
+    if tag not in ['CL', 'EL']:
         respond = "Игрок не участвует в турнирах"
     else:
-        tour_db = TournamentUtils(db, user_league, 27)
+        tour_db = getLeagueDatabase(tag)
         respond = tour_db.write_score(id_main, id1, (g0, g1))
     
     await query.answer()
