@@ -2,7 +2,7 @@ import csv
 
 class UsersDatabaseCSV:
     def __init__(self, file_path):
-        self.file_path = file_path
+        self.file_path = f"{file_path}/users.csv"
         self.data = []
         with open(self.file_path, mode='r', newline='') as file:
             reader = csv.DictReader(file)

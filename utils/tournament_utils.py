@@ -5,10 +5,11 @@ from utils.group_handler import *
 from utils.drawer import Drawer
 
 class TournamentUtils:
-    def __init__(self, db, tag, id):
+    def __init__(self, db, tag, path, id):
         self.db = db 
         self.league_tag = tag       
-        self.file_path = f'database/{tag}-{id}.csv'
+        self.file_path = f'{path}/{tag}-{id}.csv'
+        print(self.file_path)
         if 'CL' in tag:
             self.name = 'Лига Чемпионов'
         else:

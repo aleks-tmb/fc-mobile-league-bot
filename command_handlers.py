@@ -6,9 +6,12 @@ from utils.config_utils import CONFIG
 from score_processor import ScoreProcessor
 from utils.users_database import UsersDatabaseCSV
 
+def getUsersDatabase():
+    return UsersDatabaseCSV(CONFIG.get('database_path'))
+
 def getLeagueDatabase(tag):
-    db = UsersDatabaseCSV(CONFIG.get('users_db'))
-    return TournamentUtils(db, tag, CONFIG.get('tour_number'))
+    db = getUsersDatabase()
+    return TournamentUtils(db, tag, CONFIG.get('database_path'), CONFIG.get('tour_number'))
 
 
 async def is_user_admin(chat, user):
@@ -31,7 +34,7 @@ def log_user_request(user, module = '-'):
     print(f'[{module.upper()}] You talk with user {user["username"]} and his user ID: {user["id"]}')
 
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    db = UsersDatabaseCSV(CONFIG.get('users_db')) 
+    db = getUsersDatabase()
     user_id = None
     tag = None
          
@@ -52,7 +55,7 @@ async def get_rating_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     user = update.message.from_user
     log_user_request(user)
 
-    db = UsersDatabaseCSV(CONFIG.get('users_db'))
+    db = getUsersDatabase()
     await update.message.reply_text(db.get_rating_table())
 
 
@@ -140,7 +143,7 @@ async def process_request(message, context):
             op_username, score = result
             print(op_username, score)
             try:
-                db = UsersDatabaseCSV(CONFIG.get('users_db'))
+                db = getUsersDatabase()
                 op_id = db.get_user(op_username,'username')["ID"]
                 await show_score_confirmation(db, context, message, op_id, score)
             except KeyError:
@@ -220,7 +223,7 @@ async def set_rating(message):
     if user.username is None:
         message.reply_text("Братишка, установи username в Телеге, пожалуйста :)")
 
-    db = UsersDatabaseCSV(CONFIG.get('users_db'))
+    db = getUsersDatabase()
 
     for word in message.text.split():
         try:
@@ -272,7 +275,7 @@ async def score_confirm_callback(update: Update, context: ContextTypes.DEFAULT_T
         return
     
     # Assuming you have a configuration variable CONFIG defined somewhere
-    db = UsersDatabaseCSV(CONFIG.get('users_db'))
+    db = getUsersDatabase()
     tag = db.get_user(id_main)['league']
 
     if tag not in ['CL', 'EL']:
