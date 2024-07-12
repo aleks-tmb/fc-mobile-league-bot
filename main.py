@@ -16,7 +16,6 @@ from command_handlers import (
 from utils.config_utils import read_config
 from utils.config_utils import CONFIG
 from utils.tournament_utils import TournamentUtils
-
 from utils.users_database import UsersDatabaseCSV
 
 def init_bot(token):
@@ -33,6 +32,8 @@ def main():
     read_config()
     print(CONFIG) 
     init_bot(CONFIG.get('bot_token'))
+
+
 
 if __name__ == "__main__":
     main()

@@ -1,5 +1,6 @@
 import random
 import csv
+import copy
 
 from utils.group_handler import *
 from utils.drawer import Drawer
@@ -18,12 +19,12 @@ class TournamentUtils:
         self._read_data()
 
     def _read_data(self):
-        print('_read_data')
         try:
             with open(self.file_path, mode='r', newline='') as file:
                 reader = csv.DictReader(file)
                 self.data = [row for row in reader]
                 for row in self.data:
+                    row['number'] = int(row['number'])
                     try:
                         row['id0'] = int(row['id0'])
                         row['id1'] = int(row['id1'])
@@ -41,28 +42,30 @@ class TournamentUtils:
                 writer.writeheader()
                 writer.writerows(self.data)
 
-    def _add_record(self, tag, id0, id1, index=None):
+    def _add_record(self, stage, tag, number, id0, id1, index=None):
             new_record = {
                 "ID": len(self.data),
+                "stage" : stage,
                 "tag": tag,
+                "number": number,
                 "id0": id0,
                 "id1": id1,
                 "score": ''
             }
-            if index is None:
-                self.data.append(new_record)
-            else:
-                self.data.insert(index + 1, new_record)
+            self.data.append(new_record)
 
 #---------------------------------------------------------------------------------#   
     def get_stage(self):
+        self._read_data()
+
         if not self.data:
             return 'NOT-STARTED'
 
-        if any('last' in row['tag'] for row in self.data):
-            return 'PLAY-OFF'
-
-        return 'GROUP'      
+        stage = 'PLAYOFF' if any('playoff' in row['stage'] for row in self.data) else 'GROUP'
+ 
+        if all(row['score'] != '' for row in self.data):
+            stage += '-COMPLETE'
+        return stage
 #---------------------------------------------------------------------------------#
     def get_status(self, user_id = None):
         stage = self.get_stage()
@@ -70,7 +73,7 @@ class TournamentUtils:
         if stage == 'NOT-STARTED':
             return 'Турнир еще не стартовал'
 
-        if stage == 'PLAY-OFF':
+        if 'PLAYOFF' in stage:
             return self.get_playoff_schedule()
 
         if user_id is None:
@@ -99,8 +102,8 @@ class TournamentUtils:
             letter = chr(ord('A') + index)
             for i in range(len(group)):
                 for j in range(i + 1, len(group)):
-                    self._add_record(f'group{letter}', group[i], group[j])
-                    self._add_record(f'group{letter}', group[i], group[j])
+                    self._add_record('group', letter, 0, group[i], group[j])
+                    self._add_record('group', letter, 0, group[i], group[j])
         self._save_data()
 
     def make_draw_respond(self, groups):
@@ -118,8 +121,8 @@ class TournamentUtils:
     def get_groups(self):
         groups = {}
         for row in self.data:
-            tag = row['tag']
-            if 'group' in tag:
+            if 'group' == row['stage']:
+                tag = row['tag']
                 if groups.get(tag) == None:
                     groups[tag] = Group(tag)  
                 groups[tag].append_match(row['id0'], row['id1'], row['score'])
@@ -139,7 +142,7 @@ class TournamentUtils:
         return 'Группа не найдена'  
 
     def make_playoff(self, pairs_count):
-        if self.get_stage() == 'PLAY-OFF':
+        if 'PLAYOFF' in self.get_stage():
             return 'Плей-офф уже идет'
         
         users = self.get_rated_list()[:2*pairs_count]
@@ -181,20 +184,26 @@ class TournamentUtils:
         return result
 
     def write_playoff_schedule(self, pairs):
+        stage_name = {
+            1: "final",
+            2: "semifinal",
+            4: "quarter",
+        }
+
         N_pairs = len(pairs)
         for i in range(N_pairs):
             pair = pairs[i]
-            self._add_record(f"last-{N_pairs*2}-{i}", pair[0], pair[1])
-            self._add_record(f"last-{N_pairs*2}-{i}", pair[0], pair[1])
+            self._add_record('playoff', stage_name[N_pairs], i, pair[0], pair[1])
+            self._add_record('playoff', stage_name[N_pairs], i, pair[0], pair[1])
 
         while N_pairs >= 2:
             N_pairs = N_pairs//2
             for i in range(N_pairs):
-                self._add_record(f"last-{N_pairs*2}-{i}", "", "")
-                self._add_record(f"last-{N_pairs*2}-{i}", "", "")
+                self._add_record('playoff', stage_name[N_pairs], i, "", "")
+                self._add_record('playoff', stage_name[N_pairs], i, "", "")
 
-        self._add_record(f"third", "", "")
-        self._add_record(f"third", "", "")
+        self._add_record('playoff','third', 0, "", "")
+        self._add_record('playoff','third', 0, "", "")
         self._save_data()
 
     def parse_score(self, score):
@@ -212,27 +221,28 @@ class TournamentUtils:
             return f"{player1} {score[0]}:{score[1]} {player2}"
         return f"{player1} - {player2}"
 
-    def get_playoff_schedule(self):
-        rounds = {'last-8': [], 'last-4': [], 'last-2': [], 'third': []}
+    def get_playoff_schedule(self, header = True):
+        stages = ['quarter', 'semifinal', 'final', 'third']
+        rounds = {stage: [] for stage in stages}
+        
         for row in self.data:
-            for tag in rounds:
-                if tag in row['tag']:
-                    rounds[tag].append(self.parse_row(row))
-                    break
+            if row['stage'] == 'playoff' and row['tag'] in rounds:
+                rounds[row['tag']].append(self.parse_row(row))
+        
+        result = [self.name] if header else []
 
-        result = f"{self.name}\n"
-        result += "1/4 финала\n\n" + '\n'.join(rounds['last-8'])
-
-        if rounds['last-4']:
-            result += "\n\nПолуфиналы\n\n" + '\n'.join(rounds['last-4'])
-
-        if rounds['last-2']:
-            result += "\n\nФинал\n\n" + '\n'.join(rounds['last-2'])
-
-        if rounds['third']:
-            result += "\nМатч за третье место\n\n" + '\n'.join(rounds['third'])        
-
-        return result
+        stage_names = {
+            'quarter': "1/4 финала",
+            'semifinal': "Полуфиналы",
+            'final': "Финал",
+            'third': "Матч за третье место"
+        }
+        
+        for stage in stages:
+            if rounds[stage]:
+                result.append(f"\n\n ● {stage_names[stage]}\n" + '\n'.join(rounds[stage]))
+        
+        return ''.join(result)
 
     def write_score(self, id0, id1, score):
         print('[write_score]', id0, id1, score)
@@ -254,33 +264,34 @@ class TournamentUtils:
 
         self._save_data()
 
-        if self.get_stage() == 'PLAY-OFF':
+        if self.get_stage() == 'PLAYOFF':
             self.update_playoff_path(id0, id1)
 
         return "Результат зафиксирован!"
 
+    def _get_next_stage(self, stage):
+        if stage == 'quarter':
+            return 'semifinal'
+        if stage == 'semifinal':
+            return 'final'
+        return None
+
+
     def update_playoff_path(self, id0, id1):
         self._read_data()
-        matches_played, g0, g1, last_row = self._analyze_matches(id0, id1)
+        matches_played, winner, loser, last_row = self._analyze_matches(id0, id1)
 
         if matches_played < 2:
             return
         
-        tag = last_row['tag']
-        if tag == 'last-2-0' or tag == 'third':
+        next_tag = self._get_next_stage(last_row['tag'])
+        if next_tag is None:
             return 
 
-        try:
-            stage_id, match_id = tag.split('-')[1:3]
-            stage_id = int(stage_id)
-            match_id = int(match_id)
-        except:
-            return
-
-        if g0 == g1:
+        if winner is None:
             self._handle_tie(last_row)
         else:
-            self._handle_winner(stage_id, match_id, last_row['id0'], last_row['id1'], g0, g1)
+            self._handle_winner(next_tag, last_row, winner, loser)
 
         self._save_data()
 
@@ -289,51 +300,50 @@ class TournamentUtils:
         last_row = None
 
         for row in self.data:
-            if 'last' in row['tag'] and {row['id0'], row['id1']} == {id0, id1}:
-                match = Match(row['id0'], row['id1'], row['score'])
+            if row['stage'] == 'playoff':
+                if {row['id0'], row['id1']} == {id0, id1}:
+                    match = Match(row['id0'], row['id1'], row['score'])
 
-                if match.played:
-                    matches_played += 1
-                    g0 += match.score[0]
-                    g1 += match.score[1]
-                    last_row = row
+                    if match.played:
+                        matches_played += 1
+                        g0 += match.score[0]
+                        g1 += match.score[1]
+                        last_row = row
 
-        return matches_played, g0, g1, last_row
+        winner, loser = None, None
+        if g0 != g1:
+            winner, loser = (id0, id1) if g0 > g1 else (id1, id0)
 
-    def _adjust_ids(self, row, id0, id1):
-        if row['id0'] == id1 and row['id1'] == id0:
-            return id1, id0
-        return id0, id1
+        return matches_played, winner, loser, last_row
 
     def _handle_tie(self, last_row):
         index = self.data.index(last_row)
-        self._add_record(last_row['tag'], last_row['id0'], last_row['id1'], index)
+        new_row = copy.deepcopy(last_row)
+        new_row['ID'] = len(self.data)
+        new_row['score'] = ''
+        self.data.insert(index + 1, new_row)
 
-    def _handle_winner(self, stage_id, match_id, id0, id1, g0, g1):
-        promoted, loser = (id0, id1) if g0 > g1 else (id1, id0)
-        next_stage = self._next_stage_tag(stage_id, match_id)
-        id_key = 'id0' if match_id % 2 == 0 else 'id1'
+    def _handle_winner(self, next_tag, last_row, winner, loser):
+        next_num = last_row['number'] // 2
 
         for row in self.data:
-            if row['tag'] == next_stage:
-                row[id_key] = promoted
+            if row['tag'] == next_tag and row['number'] == next_num:
+                id_key = 'id0' if row['id0'] == '' else 'id1'
+                row[id_key] = winner
 
-        if int(stage_id) == 4:
-            self._assign_loser_to_third_place(loser, id_key)
+        if next_tag == 'final':
+            self._assign_loser_to_third_place(loser)
 
     def _next_stage_tag(self, stage_id, match_id):
         stage_id = int(stage_id)
         match_id = int(match_id)
         return f"last-{stage_id // 2}-{match_id // 2}"
 
-    def _assign_loser_to_third_place(self, loser, id_key):
+    def _assign_loser_to_third_place(self, loser):
         for row in self.data:
             if row['tag'] == 'third':
+                id_key = 'id0' if row['id0'] == '' else 'id1'
                 row[id_key] = loser
-            
-    def group_stage_finished(self):
-        groups = self.get_groups()
-        return all(group.all_matches_played() for group in groups.values())
 
     def get_rated_list(self):
         groups = self.get_groups()
@@ -363,6 +373,35 @@ class TournamentUtils:
         for user in sorted_users:
             respond += f"{user['username']} [{user['rate']}]\n"
         return respond
+
+    def get_summary(self):
+        if self.get_stage() != 'PLAYOFF-COMPLETE':
+            return ''
+        
+        for row in self.data:
+            if 'final' in row['tag']:
+                final_record = row
+            if 'third' in row['tag']:
+                third_record = row
+        
+        _, gold_id, silver_id, _ = self._analyze_matches(final_record['id0'], final_record['id1'])
+        _, bronze_id, _, _ = self._analyze_matches(third_record['id0'], third_record['id1'])
+
+        gold = self.db.get_username_by_id(gold_id)
+        silver = self.db.get_username_by_id(silver_id)
+        bronze = self.db.get_username_by_id(bronze_id)
+
+        resp = f'{self.name} завершена!\n'
+        resp += f'Поздравляем @{gold} c победой! 🏆 \n\n'
+        resp += 'Призеры турнира:\n'
+        resp += f"🥇 {gold}\n🥈 {silver}\n🥉 {bronze}\n\n"
+
+        resp += 'Результаты плей-офф:'
+        resp += self.get_playoff_schedule(False)
+
+        return resp
+
+        
 
     # def get_history(self):
     #     resp = ""

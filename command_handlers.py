@@ -184,7 +184,6 @@ async def show_status(message, tag, user_id = None):
     respond = league_db.get_status(user_id)
     await message.reply_html(f'<pre>{respond}</pre>')
 
-
 async def init_draw(message):
     user = message.from_user
     chat = message.chat
@@ -205,15 +204,12 @@ async def init_draw(message):
 
         N = CONFIG.get('reactions_count')
 
-        if stage == 'NOT-STARTED':
+        if CL_db.get_stage() == 'NOT-STARTED':
             await message.reply_text(f'Проведу жеребьевку турнира на {N} реакций 😎', reply_markup=build_react_counter())
-        elif stage == 'GROUP':  
-            if CL_db.group_stage_finished() and LE_db.group_stage_finished():
-                await message.reply_text(f'Проведу жеребьевку плей-офф на {N} реакций 😎', reply_markup=build_react_counter())
-            else:
-                await message.reply_text(f'Групповой турнир не завершен - не все матчи отыграны')
+        elif CL_db.get_stage() == 'GROUP-COMPLETE' and LE_db.get_stage() == 'GROUP-COMPLETE':  
+            await message.reply_text(f'Проведу жеребьевку плей-офф на {N} реакций 😎', reply_markup=build_react_counter())
         else:
-            await message.reply_text('Турнир не завершен')
+            await message.reply_text('Не все мачти сыграны')
     else:
         await message.reply_text('Доступно только для админов')
 
@@ -222,6 +218,7 @@ async def set_rating(message):
 
     if user.username is None:
         message.reply_text("Братишка, установи username в Телеге, пожалуйста :)")
+        return
 
     db = getUsersDatabase()
 
@@ -286,3 +283,7 @@ async def score_confirm_callback(update: Update, context: ContextTypes.DEFAULT_T
     
     await query.answer()
     await query.edit_message_text(text=respond)
+    
+    if tour_db.get_stage() == 'PLAYOFF-COMPLETE':
+        if respond == 'Результат зафиксирован!':
+            await query.message.reply_text(tour_db.get_summary())

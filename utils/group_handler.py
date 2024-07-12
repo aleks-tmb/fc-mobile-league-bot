@@ -73,7 +73,7 @@ class Group:
 
         self.items = sorted(items.values(), key=lambda x: (x.points, (x.scored - x.conceded), x.scored), reverse=True)
 
-        result = f"{self.name}   [игры,очки,голы]\n"
+        result = f"Группа {self.name}  [игры,очки,голы]\n"
         result += '-'*26 + '\n'
         for num, item in enumerate(self.items, start=1):
             diff = f"{item.scored}-{item.conceded}"
@@ -87,6 +87,3 @@ class Group:
 
     def get_matches_list(self, db):
         return "\n".join(match.to_string(db) for match in self.matches)
-
-    def all_matches_played(self):
-        return all(match.played for match in self.matches)
