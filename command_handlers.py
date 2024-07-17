@@ -1,10 +1,14 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
+from telegram.constants import ParseMode
+
 
 from utils.tournament_utils import TournamentUtils
 from utils.config_utils import CONFIG
 from score_processor import ScoreProcessor
 from utils.users_database import UsersDatabaseCSV
+
+import re
 
 def getUsersDatabase():
     return UsersDatabaseCSV(CONFIG.get('database_path'))
@@ -233,9 +237,9 @@ async def set_rating(message):
 
     await message.reply_text("Не нашел целое число в сообщении :(")
 
-async def show_score_confirmation(db, context, message, op_id, score):
+async def show_score_confirmation(db, context, message, op_id, score, edit_message_id, tag):
     user_id = message.from_user.id
-    s = f"{user_id}_{op_id}_{score[0]}_{score[1]}"
+    s = f"{user_id}_{op_id}_{score[0]}_{score[1]}_{edit_message_id}_{tag}"
     print(s)
     keyboard = [
         [InlineKeyboardButton("Да", callback_data=f'confirm_yes_{s}')],
@@ -260,6 +264,8 @@ async def score_confirm_callback(update: Update, context: ContextTypes.DEFAULT_T
     id1 = int(callback_data[3])
     g0 = int(callback_data[4])
     g1 = int(callback_data[5])
+    edit_id = int(callback_data[6])
+    tag = callback_data[7]
 
     # Check if the user is the initiating user
     if user.id != id_main:
@@ -271,12 +277,8 @@ async def score_confirm_callback(update: Update, context: ContextTypes.DEFAULT_T
         await query.edit_message_text(text="Отменяю!")
         return
     
-    # Assuming you have a configuration variable CONFIG defined somewhere
-    db = getUsersDatabase()
-    tag = db.get_user(id_main)['league']
-
     if tag not in ['CL', 'EL']:
-        respond = "Игрок не участвует в турнирах"
+        respond = "Турнир не идентифицирован"
     else:
         tour_db = getLeagueDatabase(tag)
         respond = tour_db.write_score(id_main, id1, (g0, g1))
@@ -284,6 +286,84 @@ async def score_confirm_callback(update: Update, context: ContextTypes.DEFAULT_T
     await query.answer()
     await query.edit_message_text(text=respond)
     
-    if tour_db.get_stage() == 'PLAYOFF-COMPLETE':
-        if respond == 'Результат зафиксирован!':
-            await query.message.reply_text(tour_db.get_summary())
+    # if tour_db.get_stage() == 'PLAYOFF-COMPLETE':
+    #     if respond == 'Результат зафиксирован!':
+    #         await query.message.reply_text(tour_db.get_summary())
+
+    if respond == 'Результат зафиксирован!':
+        await update_post(context.bot, edit_id, tag)
+
+
+async def post_to_channel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    try:
+        user_id = update.message.from_user.id
+    except:
+        return
+
+    if user_id != int(CONFIG.get('owner_id')):
+        await update.message.reply_text('Restricted!')  
+        return
+
+    CHANNEL_USERNAME = f"@{CONFIG.get('channel_username')}"
+    for tag in ['CL','EL']:
+        league_db = getLeagueDatabase(tag)
+        respond = f'{league_db.get_name()}. Групповой этап.\n\n'
+        respond += f'<pre>{league_db.get_status()}</pre>'
+        await context.bot.send_message(chat_id=CHANNEL_USERNAME, text=respond, parse_mode=ParseMode.HTML) 
+        await update.message.reply_text('Posted!')  
+
+async def update_post(bot, edit_id, tag) -> None:
+    CHANNEL_USERNAME = f"@{CONFIG.get('channel_username')}"
+    league_db = getLeagueDatabase(tag)
+    new_text = f'{league_db.get_name()}. Групповой этап.\n\n'
+    new_text += f'<pre>{league_db.get_status()}</pre>'
+    await bot.edit_message_text(chat_id=CHANNEL_USERNAME, message_id=edit_id, text=new_text, parse_mode=ParseMode.HTML)
+
+def parse_bot_request(text):
+    clean_text = re.sub(r'[.,\-]', ' ', text)
+    words = clean_text.split()
+
+    BOT_USERNAME = f"@{CONFIG.get('bot_username')}"
+    if words[0].lower() == 'бот' or words[0] == BOT_USERNAME:
+        return words[1:]
+    return None
+
+async def reply_to_comment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    message = update.message
+    if not message:
+        return
+
+    channel_post = message.reply_to_message
+
+    if channel_post and channel_post.forward_origin:
+        origin = channel_post.forward_origin
+    else:
+        return
+
+    if origin.chat.username != CONFIG.get('channel_username'):
+        print(CONFIG.get('channel_username'))
+        print(origin)
+        return
+
+    if channel_post.text.startswith('Лига Чемпионов.'):
+        tag = 'CL'
+    elif channel_post.text.startswith('Лига Европы.'):
+        tag = 'EL'
+    else:
+        return
+
+    words = parse_bot_request(message.text)
+    if words is None:
+        return
+
+    score_processor = ScoreProcessor(words)
+    result = score_processor.get_report()
+    if result:
+        op_username, score = result
+        print(op_username, score)
+        try:
+            db = getUsersDatabase()
+            op_id = db.get_user(op_username,'username')["ID"]
+            await show_score_confirmation(db, context, message, op_id, score, origin.message_id, tag)
+        except KeyError:
+            await message.reply_text(f'Игрок {op_username} не найден в базе данных')

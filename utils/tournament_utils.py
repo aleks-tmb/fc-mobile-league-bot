@@ -54,7 +54,10 @@ class TournamentUtils:
             }
             self.data.append(new_record)
 
-#---------------------------------------------------------------------------------#   
+#---------------------------------------------------------------------------------# 
+    def get_name(self):
+        return self.name
+
     def get_stage(self):
         self._read_data()
 
@@ -131,7 +134,7 @@ class TournamentUtils:
     def show_all_tables(self, full = False):
         groups = self.get_groups()
         messages = [group.compute_table(self.db, full) for group in groups.values()]
-        return f"{self.name}\n\n" + '\n\n'.join(messages)      
+        return '\n\n'.join(messages)      
 
     def show_user_table(self, user_id):
         groups = self.get_groups()

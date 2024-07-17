@@ -73,7 +73,7 @@ class Group:
 
         self.items = sorted(items.values(), key=lambda x: (x.points, (x.scored - x.conceded), x.scored), reverse=True)
 
-        result = f"Группа {self.name}  [игры,очки,голы]\n"
+        result = f"● Group {self.name} [игры,очки,голы]\n"
         result += '-'*26 + '\n'
         for num, item in enumerate(self.items, start=1):
             diff = f"{item.scored}-{item.conceded}"
