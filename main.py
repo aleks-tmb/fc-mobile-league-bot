@@ -17,6 +17,7 @@ from utils.tournament_utils import TournamentUtils
 from utils.users_database import UsersDatabaseCSV
 
 from command_handlers import getLeagueDatabase
+from command_handlers import getUsersDatabase
 
 
 def init_bot(token):

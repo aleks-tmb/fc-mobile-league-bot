@@ -203,12 +203,46 @@ def parse_bot_request(text):
         return words[1:]
     return None
 
+async def reply_in_common_chat(message):
+    # Ensure the message is a reply and contains text
+    if not message.reply_to_message or not message.text:
+        return
+    
+    user_id = message.reply_to_message.from_user.id
+    
+    # Check if the message text matches 'ник'
+    if message.text.lower() == 'ник':
+        try:
+            db = getUsersDatabase()
+            user = db.get_user(user_id)
+            respond = (
+                f"@{user['username']}\n"
+                f"никнейм в FC mobile: {user['nick']}\n"
+                f"рейтинг в РИ: {user['rate']}"
+            )
+            await message.reply_text(respond)
+        except Exception as e:
+            # Log the exception if needed
+            print(f"Error fetching user data: {e}")
+            return
+
+
+
+
 async def reply_to_comment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = update.message
     if not message:
         return
 
     channel_post = message.reply_to_message
+
+    
+    if message.reply_to_message:
+        print(message.reply_to_message.chat)
+        if message.reply_to_message.chat.title == CONFIG.get('group_title'):
+            await reply_in_common_chat(message)
+            return
+
 
     if channel_post and channel_post.forward_origin:
         origin = channel_post.forward_origin
