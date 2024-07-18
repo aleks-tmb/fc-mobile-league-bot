@@ -206,12 +206,9 @@ async def process_replay(message):
 
 def check_pattern(words, pattern):
     list = pattern.split()
-    print('list')
-    print(list)
-    print('words')
-    print(words)
+    lowercased_words = [word.lower() for word in words]
     for word in list:
-        if word not in words:
+        if word not in lowercased_words:
             return False
     return True
     
@@ -220,7 +217,7 @@ async def process_request(message):
     user = message.from_user
 
     clean_text = re.sub(r'[.,?!\-]', ' ', message.text)
-    words = clean_text.lower().split()[1:]
+    words = clean_text.split()[1:]
     print(words)
     db = getUsersDatabase()
 
@@ -232,7 +229,7 @@ async def process_request(message):
         for word in words:
             try:
                 rating = int(word)        
-                respond = db.update_rating(user.id, user.username, rating)
+                respond = db.update_record(user.id, user.username, 'rate', rating)
                 await message.reply_text(respond)
                 return
             except ValueError:
@@ -240,11 +237,24 @@ async def process_request(message):
 
         await message.reply_text("Не нашел целое число в сообщении")        
         return
+    
+    if check_pattern(words, 'мой ник'):
+        for word in words:
+            if word.lower() == 'мой' or word.lower() == 'ник':
+                continue
+
+            respond = db.update_record(user.id, user.username, 'nick',word)
+            await message.reply_text(respond)
+            return
+
+        await message.reply_text("Не смог записать ник")        
+        return
 
     default_respond = (
         f"Привет, {user.username}! Я понимаю следующие команды:\n\n"
         f"'бот, рейтинг лиги' - выведут участников лиги и их рейтинг в РИ\n\n"
         f"'бот, мой рейтинг 1234' - запишу максимальное кол-во кубков в РИ\n\n"
+        f"'бот, мой ник nick' - запишу ник в FC Mobile\n\n"
     )
 
     await message.reply_text(default_respond)
