@@ -364,29 +364,34 @@ class TournamentUtils:
     def get_summary(self):
         if self.get_stage() != 'PLAYOFF-COMPLETE':
             return ''
-        
-        for row in self.data:
-            if 'final' in row['tag']:
-                final_record = row
-            if 'third' in row['tag']:
-                third_record = row
-        
-        _, gold_id, silver_id, _ = self._analyze_matches(final_record['id0'], final_record['id1'])
-        _, bronze_id, _, _ = self._analyze_matches(third_record['id0'], third_record['id1'])
 
-        gold = self.db.get_username_by_id(gold_id)
-        silver = self.db.get_username_by_id(silver_id)
-        bronze = self.db.get_username_by_id(bronze_id)
+        final_record = next((row for row in self.data if 'final' in row['tag']), None)
+        third_record = next((row for row in self.data if 'third' in row['tag']), None)
 
-        resp = f'{self.name} завершена!\n'
-        resp += f'Поздравляем @{gold} c победой! 🏆 \n\n'
-        resp += 'Призеры турнира:\n'
-        resp += f"🥇 {gold}\n🥈 {silver}\n🥉 {bronze}\n\n"
+        if not final_record or not third_record:
+            return 'Final or third-place match data is missing.'
 
-        resp += 'Результаты плей-офф:'
-        resp += self.get_playoff_schedule()
+        try:
+            _, gold_id, silver_id, _ = self._analyze_matches(final_record['id0'], final_record['id1'])
+            _, bronze_id, _, _ = self._analyze_matches(third_record['id0'], third_record['id1'])
 
-        return resp
+            gold = self.db.get_username_by_id(gold_id)
+            silver = self.db.get_username_by_id(silver_id)
+            bronze = self.db.get_username_by_id(bronze_id)
+
+            if not gold or not silver or not bronze:
+                raise ValueError('User data for winners is missing.')
+        except Exception as e:
+            return str(e)
+
+        return (
+            f'{self.name}, {self.id}-й сезон завершен!\n\n'
+            f'Поздравляем @{gold} c победой! 🏆 \n\n'
+            'Призеры турнира:\n'
+            f'🥇 {gold}\n🥈 {silver}\n🥉 {bronze}\n\n'
+        )
+
+
 
         
 

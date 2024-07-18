@@ -107,17 +107,13 @@ async def score_confirm_callback(update: Update, context: ContextTypes.DEFAULT_T
         await update_post(context.bot, edit_id, tag, season)
         if tour_db.get_stage() == 'GROUP-COMPLETE':
             tour_db.make_playoff(4)
-            await make_post(context.bot, tag, season)
-            
+            await make_post(context.bot, tour_db.get_status())
+        elif tour_db.get_stage() == 'PLAYOFF-COMPLETE':
+            await make_post(context.bot, tour_db.get_summary())
 
-    
-
-
-async def make_post(bot, tag, season):
-    league_db = getLeagueDatabase(tag, season)
-    respond = league_db.get_status()
+async def make_post(bot, post):
     CHANNEL_USERNAME = f"@{CONFIG.get('channel_username')}"
-    await bot.send_message(chat_id=CHANNEL_USERNAME, text=respond, parse_mode=ParseMode.HTML) 
+    await bot.send_message(chat_id=CHANNEL_USERNAME, text=post, parse_mode=ParseMode.HTML) 
 
 async def post_to_channel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     try:
