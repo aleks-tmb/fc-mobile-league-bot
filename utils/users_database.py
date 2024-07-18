@@ -10,6 +10,7 @@ class UsersDatabaseCSV:
             for row in self.data:
                 row['ID'] = int(row['ID'])
                 row['rate'] = int(row['rate'])
+                row['active'] = int(row['active'])
 
     def get_all_users(self):
         """Returns the list of users."""
@@ -37,7 +38,9 @@ class UsersDatabaseCSV:
         user = {
             "ID": id,
             "username": username,
+            "nick": "",
             "rate": 0,
+            "active": 1,
             "league": ""
         }          
 
@@ -84,7 +87,8 @@ class UsersDatabaseCSV:
                 writer.writeheader()
 
     def get_rating_table(self):
-        sorted_users = sorted(self.data, key=lambda x: x['rate'], reverse=True)
+        active_users = [user for user in self.data if user['active'] == 1]
+        sorted_users = sorted(active_users, key=lambda x: x['rate'], reverse=True)
 
         respond = "Рейтинг Лиги\n\n"
         for i, participant in enumerate(sorted_users, start=1):
@@ -98,7 +102,8 @@ class UsersDatabaseCSV:
             self.add_user(id, username) 
             player = self.get_user(id)
 
-        player[key] = value
         player["username"] = username
+        player["active"] = 1
+        player[key] = value
         self.update_user(player)
         return f"{username}, новое значение {value} записано!"

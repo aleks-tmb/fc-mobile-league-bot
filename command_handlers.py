@@ -213,7 +213,7 @@ def check_pattern(words, pattern):
     return True
     
 
-async def process_request(message):
+async def process_request(message, is_admin):
     user = message.from_user
 
     clean_text = re.sub(r'[.,?!\-]', ' ', message.text)
@@ -249,10 +249,36 @@ async def process_request(message):
 
         await message.reply_text("Не смог записать ник")        
         return
+    
+    pattern = 'вычеркни рейтинг'
+    if check_pattern(words, pattern):
+        if not is_admin:
+            return
+
+        for word in words:
+            if word.lower() in pattern:
+                continue
+            username = word
+            if username[0] == '@':
+                username = username[1:]
+
+            try:
+                db.get_user(username, 'username')
+                db.update_record(user.id, user.username, 'active',0)
+                await message.reply_text(f"Пользователь @{username} вычеркнут из Базы Данных")
+            except KeyError:
+                await message.reply_text(f"Пользователь @{username} не найден в Базе Данных")
+        return
+    
+    if check_pattern(words, 'статус'):
+        await message.reply_text(f"Статус турнира смотри в канале: https://t.me/grandleaguen")
+        return
+
 
     default_respond = (
         f"Привет, {user.username}! Я понимаю следующие команды:\n\n"
         f"'бот, рейтинг лиги' - выведут участников лиги и их рейтинг в РИ\n\n"
+        f"'бот, вычеркни рейтинг @username' - убрать участника их рейтинга лиги (admin)\n\n"
         f"'бот, мой рейтинг 1234' - запишу максимальное кол-во кубков в РИ\n\n"
         f"'бот, мой ник nick' - запишу ник в FC Mobile\n\n"
     )
@@ -261,13 +287,13 @@ async def process_request(message):
     
     
 
-async def reply_in_common_chat(message):
+async def reply_in_common_chat(message, is_admin):
     if not message.text:
         return
     
     lower_text = message.text.lower()
     if lower_text.startswith('бот'):
-        await process_request(message)
+        await process_request(message, is_admin)
         return
 
     if message.reply_to_message:
@@ -278,12 +304,17 @@ async def reply_to_comment(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     if not message:
         return
 
+    chat_id = update.effective_chat.id
+    user_id = update.message.from_user.id
+    chat_admins = await context.bot.get_chat_administrators(chat_id)
+    is_admin = any(admin.user.id == user_id for admin in chat_admins)
+    print(f"[chat_id] {chat_id}")
+
     channel_post = message.reply_to_message
 
     if message.chat.title == CONFIG.get('group_title'):
-        await reply_in_common_chat(message)
+        await reply_in_common_chat(message, is_admin)
         return
-
 
     if channel_post and channel_post.forward_origin:
         origin = channel_post.forward_origin
