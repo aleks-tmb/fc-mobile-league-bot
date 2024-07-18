@@ -184,9 +184,9 @@ async def process_replay(message):
     
     clean_text = re.sub(r'[.,?!\-]', ' ', message.text)
     words = clean_text.lower().split()
-    print(words)
     # Check if the message text matches 'ник'
     if 'ник' in words:
+        print(words)
         try:
             db = getUsersDatabase()
             user_id = message.reply_to_message.from_user.id
@@ -280,7 +280,6 @@ async def reply_to_comment(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     channel_post = message.reply_to_message
 
-    print(message.chat.title)
     if message.chat.title == CONFIG.get('group_title'):
         await reply_in_common_chat(message)
         return
