@@ -37,12 +37,6 @@ def build_react_counter(like_count=0):
 def log_user_request(user, module = '-'):
     print(f'[{module.upper()}] You talk with user {user["username"]} and his user ID: {user["id"]}')
 
-async def get_rating_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.message.from_user
-    log_user_request(user)
-
-    db = getUsersDatabase()
-    await update.message.reply_text(db.get_rating_table())
 
 
 async def perform_draw(tag, season):
@@ -54,26 +48,6 @@ async def perform_draw(tag, season):
         league_db.make_groups(4)
     elif stage == 'GROUP':          
         league_db.make_playoff(4)
-
-async def set_rating(message):
-    user = message.from_user
-
-    if user.username is None:
-        message.reply_text("Братишка, установи username в Телеге, пожалуйста :)")
-        return
-
-    db = getUsersDatabase()
-
-    for word in message.text.split():
-        try:
-            rating = int(word)        
-            respond = db.update_rating(user.id, user.username, rating)
-            await message.reply_text(respond)
-            return
-        except ValueError:
-            continue
-
-    await message.reply_text("Не нашел целое число в сообщении :(")
 
 async def show_score_confirmation(db, message, op_id, score, edit_message_id, league_info):
     user_id = message.from_user.id
@@ -203,12 +177,10 @@ def parse_bot_request(text):
         return words[1:]
     return None
 
-async def reply_in_common_chat(message):
-    # Ensure the message is a reply and contains text
-    if not message.reply_to_message or not message.text:
+async def process_replay(message):
+   # Ensure the message is a reply and contains text
+    if not message.reply_to_message:
         return
-    
-    user_id = message.reply_to_message.from_user.id
     
     clean_text = re.sub(r'[.,?!\-]', ' ', message.text)
     words = clean_text.lower().split()
@@ -217,6 +189,7 @@ async def reply_in_common_chat(message):
     if 'ник' in words:
         try:
             db = getUsersDatabase()
+            user_id = message.reply_to_message.from_user.id
             user = db.get_user(user_id)
             respond = (
                 f"@{user['username']}\n"
@@ -231,8 +204,64 @@ async def reply_in_common_chat(message):
             print(f"Error fetching user data: {e}")
             return
 
+def check_pattern(words, pattern):
+    list = pattern.split()
+    print('list')
+    print(list)
+    print('words')
+    print(words)
+    for word in list:
+        if word not in words:
+            return False
+    return True
+    
 
+async def process_request(message):
+    user = message.from_user
 
+    clean_text = re.sub(r'[.,?!\-]', ' ', message.text)
+    words = clean_text.lower().split()[1:]
+    print(words)
+    db = getUsersDatabase()
+
+    if check_pattern(words, 'рейтинг лиги'):
+        await message.reply_text(db.get_rating_table())
+        return
+    
+    if check_pattern(words, 'мой рейтинг'):
+        for word in words:
+            try:
+                rating = int(word)        
+                respond = db.update_rating(user.id, user.username, rating)
+                await message.reply_text(respond)
+                return
+            except ValueError:
+                continue
+
+        await message.reply_text("Не нашел целое число в сообщении")        
+        return
+
+    default_respond = (
+        f"Привет, {user.username}! Я понимаю следующие команды:\n\n"
+        f"'бот, рейтинг лиги' - выведут участников лиги и их рейтинг в РИ\n\n"
+        f"'бот, мой рейтинг 1234' - запишу максимальное кол-во кубков в РИ\n\n"
+    )
+
+    await message.reply_text(default_respond)
+    
+    
+
+async def reply_in_common_chat(message):
+    if not message.text:
+        return
+    
+    lower_text = message.text.lower()
+    if lower_text.startswith('бот'):
+        await process_request(message)
+        return
+
+    if message.reply_to_message:
+        await process_replay(message)
 
 async def reply_to_comment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = update.message
@@ -241,12 +270,10 @@ async def reply_to_comment(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     channel_post = message.reply_to_message
 
-    
-    if message.reply_to_message:
-        print(message.reply_to_message.chat)
-        if message.reply_to_message.chat.title == CONFIG.get('group_title'):
-            await reply_in_common_chat(message)
-            return
+    print(message.chat.title)
+    if message.chat.title == CONFIG.get('group_title'):
+        await reply_in_common_chat(message)
+        return
 
 
     if channel_post and channel_post.forward_origin:
