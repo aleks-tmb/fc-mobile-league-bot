@@ -210,8 +210,11 @@ async def reply_in_common_chat(message):
     
     user_id = message.reply_to_message.from_user.id
     
+    clean_text = re.sub(r'[.,?!\-]', ' ', message.text)
+    words = clean_text.lower().split()
+    print(words)
     # Check if the message text matches 'ник'
-    if message.text.lower() == 'ник':
+    if 'ник' in words:
         try:
             db = getUsersDatabase()
             user = db.get_user(user_id)
@@ -221,6 +224,8 @@ async def reply_in_common_chat(message):
                 f"рейтинг в РИ: {user['rate']}"
             )
             await message.reply_text(respond)
+        except KeyError:
+            await message.reply_text(f"Пользователя нет в Базе Данных")
         except Exception as e:
             # Log the exception if needed
             print(f"Error fetching user data: {e}")
