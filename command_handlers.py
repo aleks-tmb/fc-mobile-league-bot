@@ -203,7 +203,7 @@ async def process_replay(message):
             # Log the exception if needed
             print(f"Error fetching user data: {e}")
             return
-
+        
 def check_pattern(words, pattern):
     list = pattern.split()
     lowercased_words = [word.lower() for word in words]
@@ -305,7 +305,7 @@ async def reply_to_comment(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         return
 
     chat_id = update.effective_chat.id
-    user_id = update.message.from_user.id
+    user_id = message.from_user.id
     chat_admins = await context.bot.get_chat_administrators(chat_id)
     is_admin = any(admin.user.id == user_id for admin in chat_admins)
     print(f"[chat_id] {chat_id}")
@@ -313,6 +313,16 @@ async def reply_to_comment(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     channel_post = message.reply_to_message
 
     if message.chat.title == CONFIG.get('group_title'):
+        if channel_post and is_admin and message.text.lower() == 'бан':
+            try:
+                ban_id = channel_post.from_user.id
+                await context.bot.ban_chat_member(chat_id, ban_id)
+            except Exception as e:
+                # Log the exception if needed
+                print(f"Error fetching user data: {e}")
+                return
+            return
+
         await reply_in_common_chat(message, is_admin)
         return
 
