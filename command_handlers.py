@@ -134,6 +134,7 @@ async def update_post(bot, edit_id, tag, season) -> None:
     CHANNEL_USERNAME = f"@{CONFIG.get('channel_username')}"
     league_db = getLeagueDatabase(tag, season)
     new_text = league_db.get_status()
+
     try:
         await bot.edit_message_text(chat_id=CHANNEL_USERNAME, message_id=edit_id, text=new_text, parse_mode=ParseMode.HTML)
     except:
@@ -271,6 +272,14 @@ async def process_request(message, is_admin):
     if check_pattern(words, 'статус'):
         await message.reply_text(f"Статус турнира смотри в канале: https://t.me/grandleaguen")
         return
+    
+    if check_pattern(words, 'кто не учавствует'):
+        filtered_users = [user for user in db.get_all_users() if user['league'] == '' and user['active'] == 1]
+        
+        respond = ''.join(f"@{user['username']} [{user['rate']}]\n" for user in filtered_users)
+        await message.reply_text(respond)
+        return
+    
 
 
     default_respond = (
@@ -279,6 +288,7 @@ async def process_request(message, is_admin):
         f"'бот, вычеркни рейтинг @username' - убрать участника из рейтинга лиги (admin)\n\n"
         f"'бот, мой рейтинг 1234' - запишу максимальное кол-во кубков в РИ\n\n"
         f"'бот, мой ник nick' - запишу ник в FC Mobile\n\n"
+        f"'бот, кто не учавствует' - список игроков, не заявленних ни на один турнир\n\n"
     )
 
     await message.reply_text(default_respond)
@@ -297,15 +307,48 @@ async def reply_in_common_chat(message, is_admin):
     if message.reply_to_message:
         await process_replay(message)
 
+
+async def reply_to_private(message, context):
+    sender_id = message.from_user.id
+    if sender_id != int(CONFIG.get('owner_id')):
+        return
+
+    EL = getLeagueDatabase('EL', 10)
+    CL = getLeagueDatabase('CL', 10)
+
+    if message.text == 'Го регистрацию':  
+        await make_post(context.bot, CL.get_status())
+        await make_post(context.bot, EL.get_status())
+        await message.reply_text("Posted!")
+    elif message.text == 'Го турнир':
+        CL.make_groups(6) 
+        EL.make_groups(4)
+        await make_post(context.bot, CL.get_status())
+        await make_post(context.bot, EL.get_status())
+        await message.reply_text("Posted!")
+    else:
+        await message.reply_text("Го регистрацию, турнир?")
+
+
 async def reply_to_comment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = update.message
     if not message:
         return
 
+    chat_type = message.chat.type
+    sender_id = message.from_user.id
+    
+    if chat_type == "private":
+        await reply_to_private(message, context)
+        return
+    
+    if chat_type not in ["group", "supergroup"]:
+        return
+
     chat_id = update.effective_chat.id
-    user_id = message.from_user.id
+    
     chat_admins = await context.bot.get_chat_administrators(chat_id)
-    is_admin = any(admin.user.id == user_id for admin in chat_admins)
+    is_admin = any(admin.user.id == sender_id for admin in chat_admins)
     channel_post = message.reply_to_message
 
     if message.chat.title == CONFIG.get('group_title'):

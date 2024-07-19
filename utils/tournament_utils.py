@@ -359,7 +359,7 @@ class TournamentUtils:
         filtered_users = [user for user in users if user['league'] == self.league_tag]
         sorted_users = sorted(filtered_users, key=lambda x: x['rate'], reverse=True)
         
-        respond = ''.join(f"@{user['username']} [{user['rate']}]\n" for user in sorted_users)
+        respond = ''.join(f"{i+1}. @{user['username']} [{user['rate']}]\n" for i, user in enumerate(sorted_users))
         return respond
 
     def get_summary(self):

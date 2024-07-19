@@ -35,8 +35,6 @@ def main():
     read_config()
     print(CONFIG) 
     init_bot(CONFIG.get('bot_token'))
-    # db = getLeagueDatabase('CL', 10)
-    # print(db.get_status())
 
 if __name__ == "__main__":
     main()
