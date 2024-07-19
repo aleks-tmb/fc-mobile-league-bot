@@ -366,8 +366,8 @@ class TournamentUtils:
         if self.get_stage() != 'PLAYOFF-COMPLETE':
             return ''
 
-        final_record = next((row for row in self.data if 'final' in row['tag']), None)
-        third_record = next((row for row in self.data if 'third' in row['tag']), None)
+        final_record = next((row for row in self.data if  row['tag'] == 'final'), None)
+        third_record = next((row for row in self.data if  row['tag'] == 'third'), None)
 
         if not final_record or not third_record:
             return 'Final or third-place match data is missing.'
