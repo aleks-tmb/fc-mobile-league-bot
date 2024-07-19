@@ -115,21 +115,6 @@ async def make_post(bot, post):
     CHANNEL_USERNAME = f"@{CONFIG.get('channel_username')}"
     await bot.send_message(chat_id=CHANNEL_USERNAME, text=post, parse_mode=ParseMode.HTML) 
 
-async def post_to_channel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    try:
-        user_id = update.message.from_user.id
-    except:
-        return
-
-    if user_id != int(CONFIG.get('owner_id')):
-        await update.message.reply_text('Restricted!')  
-        return
-
-    
-    for tag in ['CL','EL']:
-        make_post(context.bot, tag, 9)
-        await update.message.reply_text('Posted!')
-
 async def update_post(bot, edit_id, tag, season) -> None:
     CHANNEL_USERNAME = f"@{CONFIG.get('channel_username')}"
     league_db = getLeagueDatabase(tag, season)
@@ -326,6 +311,15 @@ async def reply_to_private(message, context):
         await make_post(context.bot, CL.get_status())
         await make_post(context.bot, EL.get_status())
         await message.reply_text("Posted!")
+    elif 'статус' in message.text:
+        try:
+            season = int(message.text.split()[1])
+            CL = getLeagueDatabase('CL', season)
+            await message.reply_html(CL.get_status() + CL.get_summary(False))
+        except Exception as e:
+            # Log the exception if needed
+            print(f"Error fetching user data: {e}")
+
     else:
         await message.reply_text("Го регистрацию, турнир?")
 

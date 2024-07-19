@@ -210,7 +210,7 @@ class TournamentUtils:
         return f"{player1} - {player2}"
 
     def get_playoff_schedule(self):
-        stages = ['quarter', 'semifinal', 'final', 'third']
+        stages = ['quarter', 'semifinal', 'third', 'final']
         rounds = {stage: [] for stage in stages}
         
         for row in self.data:
@@ -362,7 +362,7 @@ class TournamentUtils:
         respond = ''.join(f"{i+1}. @{user['username']} [{user['rate']}]\n" for i, user in enumerate(sorted_users))
         return respond
 
-    def get_summary(self):
+    def get_summary(self, with_header=True):
         if self.get_stage() != 'PLAYOFF-COMPLETE':
             return ''
 
@@ -385,12 +385,18 @@ class TournamentUtils:
         except Exception as e:
             return str(e)
 
-        return (
+        header = (
             f'{self.name}, {self.id}-й сезон завершен!\n\n'
-            f'Поздравляем @{gold} c победой! 🏆 \n\n'
+            f'Поздравляем @{gold} c победой! 🏆 \n\n')
+        
+        body = (
             'Призеры турнира:\n'
-            f'🥇 {gold}\n🥈 {silver}\n🥉 {bronze}\n\n'
+            f'🥇 @{gold}\n🥈 @{silver}\n🥉 @{bronze}\n\n'
         )
+
+        if with_header:
+            body = header + body
+        return body
 
 
 
