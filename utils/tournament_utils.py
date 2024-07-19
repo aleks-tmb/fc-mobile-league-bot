@@ -80,7 +80,9 @@ class TournamentUtils:
         result += f"сезон {self.id}\n"
 
         if stage == 'NOT-STARTED':
-            return 'Турнир еще не стартовал'
+            result += 'Список участников\n\n'
+            result += self.get_participants()
+            return result
 
 
         if 'PLAYOFF' in stage:
@@ -354,11 +356,10 @@ class TournamentUtils:
 
     def get_participants(self):
         users = self.db.get_all_users()
-        filtered_users = [user for user in users if user['league'] == self.league_tag]        
+        filtered_users = [user for user in users if user['league'] == self.league_tag]
         sorted_users = sorted(filtered_users, key=lambda x: x['rate'], reverse=True)
-        respond = f'{self.name}. Список участников\n\n'
-        for user in sorted_users:
-            respond += f"{user['username']} [{user['rate']}]\n"
+        
+        respond = ''.join(f"@{user['username']} [{user['rate']}]\n" for user in sorted_users)
         return respond
 
     def get_summary(self):

@@ -151,6 +151,7 @@ def parse_channel_post(from_chat, text):
     elif lines[0] == 'Лига Европы':
         tag = 'EL'
     else:
+        print(f"[parse_channel_post] Wrong league name {lines[0]}")
         return None
     
     try:
@@ -159,6 +160,7 @@ def parse_channel_post(from_chat, text):
     except:
         return None
     
+    print(f"[parse_channel_post] {tag} {season}")
     return {
         "tag" : tag,
         "season" : season
@@ -259,8 +261,8 @@ async def process_request(message, is_admin):
                 username = username[1:]
 
             try:
-                db.get_user(username, 'username')
-                db.update_record(user.id, user.username, 'active',0)
+                usr = db.get_user(username, 'username')
+                db.update_record(usr['ID'], username, 'active',0)
                 await message.reply_text(f"Пользователь @{username} вычеркнут из Базы Данных")
             except KeyError:
                 await message.reply_text(f"Пользователь @{username} не найден в Базе Данных")
@@ -304,11 +306,10 @@ async def reply_to_comment(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     user_id = message.from_user.id
     chat_admins = await context.bot.get_chat_administrators(chat_id)
     is_admin = any(admin.user.id == user_id for admin in chat_admins)
-    print(f"[chat_id] {chat_id}")
-
     channel_post = message.reply_to_message
 
     if message.chat.title == CONFIG.get('group_title'):
+        print(f"[reply_to_comment] In the main group")
         if channel_post and is_admin and message.text.lower() == 'бан':
             try:
                 ban_id = channel_post.from_user.id
@@ -335,13 +336,41 @@ async def reply_to_comment(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     if words is None:
         return
 
+    print(f"[reply_to_comment] In the channel comments")
+    db = getUsersDatabase()
+
+    if words[0] == '+1':
+        if league_info['tag'] == 'CL':
+            await message.reply_text(f'Регистрация в ЛЧ недоступна!')
+            return
+        
+        LE = getLeagueDatabase('EL', league_info['season'])
+        print(LE.get_stage())
+        if LE.get_stage() != 'NOT-STARTED':
+            await message.reply_text(f'Регистрация завершена!')
+            return           
+        
+        user = message.from_user
+        try:         
+            player = db.get_user(user.id)
+            if player['league'] == 'CL':
+                await message.reply_text(f'@{user.username}, ты учавствуешь в ЛЧ!')
+                return
+        except KeyError:
+            pass
+
+        db.update_record(user.id, user.username, 'league','EL')
+        await update_post(context.bot, origin.message_id, league_info['tag'], league_info['season'])
+        await message.reply_text(f'@{user.username}, записал тебя в участники ЛЕ!')
+        return 
+
+
     score_processor = ScoreProcessor(words)
     result = score_processor.get_report()
     if result:
         op_username, score = result
         print(op_username, score)
         try:
-            db = getUsersDatabase()
             op_id = db.get_user(op_username,'username')["ID"]
             await show_score_confirmation(db, message, op_id, score, origin.message_id, league_info)
         except KeyError:
