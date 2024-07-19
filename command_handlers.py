@@ -258,7 +258,7 @@ async def process_request(message, is_admin):
         await message.reply_text(f"Статус турнира смотри в канале: https://t.me/grandleaguen")
         return
     
-    if check_pattern(words, 'кто не учавствует'):
+    if check_pattern(words, 'кто не участвует'):
         filtered_users = [user for user in db.get_all_users() if user['league'] == '' and user['active'] == 1]
         
         respond = ''.join(f"@{user['username']} [{user['rate']}]\n" for user in filtered_users)
@@ -273,7 +273,7 @@ async def process_request(message, is_admin):
         f"'бот, вычеркни рейтинг @username' - убрать участника из рейтинга лиги (admin)\n\n"
         f"'бот, мой рейтинг 1234' - запишу максимальное кол-во кубков в РИ\n\n"
         f"'бот, мой ник nick' - запишу ник в FC Mobile\n\n"
-        f"'бот, кто не учавствует' - список игроков, не заявленних ни на один турнир\n\n"
+        f"'бот, кто не участвует' - список игроков, не заявленних ни на один турнир\n\n"
     )
 
     await message.reply_text(default_respond)
