@@ -1,4 +1,4 @@
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InputMediaPhoto, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 
@@ -113,7 +113,7 @@ async def score_confirm_callback(update: Update, context: ContextTypes.DEFAULT_T
 
 async def make_post(bot, post):
     CHANNEL_USERNAME = f"@{CONFIG.get('channel_username')}"
-    await bot.send_message(chat_id=CHANNEL_USERNAME, text=post, parse_mode=ParseMode.HTML) 
+    await bot.send_message(chat_id=CHANNEL_USERNAME, text=post, parse_mode=ParseMode.HTML)  
 
 async def update_post(bot, edit_id, tag, season) -> None:
     CHANNEL_USERNAME = f"@{CONFIG.get('channel_username')}"
@@ -313,9 +313,10 @@ async def reply_to_private(message, context):
         await message.reply_text("Posted!")
     elif 'статус' in message.text:
         try:
-            season = int(message.text.split()[1])
-            CL = getLeagueDatabase('CL', season)
-            await message.reply_html(CL.get_status() + CL.get_summary(False))
+            season = int(message.text.split()[2])
+            tag = 'CL' if 'лч' in message.text else 'EL'
+            CL = getLeagueDatabase(tag, season)
+            await message.reply_html(CL.get_status(True))
         except Exception as e:
             # Log the exception if needed
             print(f"Error fetching user data: {e}")

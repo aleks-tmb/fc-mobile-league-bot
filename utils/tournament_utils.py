@@ -73,11 +73,11 @@ class TournamentUtils:
         print(f"[get_stage], {stage}")
         return stage
 #---------------------------------------------------------------------------------#
-    def get_status(self):
+    def get_status(self, full=False):
         stage = self.get_stage()
         
         result = self.get_name() + '\n'
-        result += f"сезон {self.id}\n"
+        result += f"сезон {self.id}\n\n"
 
         if stage == 'NOT-STARTED':
             result += 'Список участников\n\n'
@@ -86,13 +86,20 @@ class TournamentUtils:
 
 
         if 'PLAYOFF' in stage:
-            result += 'Плей-офф\n'
-            result += f'<pre>\n{self.get_playoff_schedule()}</pre>'
-            return result
+            if full:
+                result += 'Групповой этап\n'
+                result += f'<pre>\n{self.show_all_tables()}</pre>\n\n'                
 
-        result += 'Групповой этап\n'
-        result += f'<pre>\n{self.show_all_tables()}</pre>'
-        
+            result += 'Плей-офф\n'
+            result += f'<pre>\n{self.get_playoff_schedule()}</pre>\n'
+        else:
+            result += 'Групповой этап\n'
+            result += f'<pre>\n{self.show_all_tables()}</pre>\n'
+
+        if full:
+            result += f"\n{self.get_summary(False)}\n"
+
+        result += '#results'
         return result
 #---------------------------------------------------------------------------------#
     def make_groups(self, groups_num):
@@ -210,7 +217,7 @@ class TournamentUtils:
         return f"{player1} - {player2}"
 
     def get_playoff_schedule(self):
-        stages = ['quarter', 'semifinal', 'third', 'final']
+        stages = ['last16', 'quarter', 'semifinal', 'third', 'final']
         rounds = {stage: [] for stage in stages}
         
         for row in self.data:
@@ -218,6 +225,7 @@ class TournamentUtils:
                 rounds[row['tag']].append(self.parse_row(row))
 
         stage_names = {
+            'last16': "1/8 финала",
             'quarter': "1/4 финала",
             'semifinal': "Полуфиналы",
             'final': "Финал",
