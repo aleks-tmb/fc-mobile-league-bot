@@ -1,3 +1,16 @@
+def print_group(db, items, title = '', split_after = None):
+
+    delim = '-'*26
+    result = f"● {title} [игры,очки,голы]\n{delim}\n"
+    for num, item in enumerate(items, start=1):
+        diff = f"{item.scored}-{item.conceded}"
+        username = db.get_username_by_id(item.id)[:13]
+        result += f"{num} {username:13}{item.games:2}{item.points:3} {diff}\n" 
+        if num == split_after:
+            result += f"{delim}\n"
+
+    return result   
+
 class Match:
     def __init__(self, player0, player1, score):
         self.id0 = player0
@@ -73,12 +86,8 @@ class Group:
 
         self.items = sorted(items.values(), key=lambda x: (x.points, (x.scored - x.conceded), x.scored), reverse=True)
 
-        result = f"● Group {self.name} [игры,очки,голы]\n"
-        result += '-'*26 + '\n'
-        for num, item in enumerate(self.items, start=1):
-            diff = f"{item.scored}-{item.conceded}"
-            username = db.get_username_by_id(item.id)[:13]
-            result += f"{num} {username:13}{item.games:2}{item.points:3} {diff}\n"
+        title = f"Group {self.name}"
+        result = print_group(db, self.items, title)
 
         if add_results:
             result += '\n' + self.get_matches_list(db)

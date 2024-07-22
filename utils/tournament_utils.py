@@ -140,6 +140,10 @@ class TournamentUtils:
         return respond
 
 #---------------------------------------------------------------------------------#
+    def get_prioritized(self, items):
+        sorted_items = sorted(items, key=lambda x: (x.points, x.scored - x.conceded, x.scored), reverse=True)
+        return sorted_items
+
     def get_groups(self):
         groups = {}
         for row in self.data:
@@ -153,8 +157,15 @@ class TournamentUtils:
     def show_all_tables(self, full = False):
         groups = self.get_groups()
         messages = [group.compute_table(self.db, full) for group in groups.values()]
-        return '\n\n'.join(messages)      
+        
+        if self.league_tag == 'CL':
+            placed3rd = [group.items[2] for group in groups.values()]
+            messages.append('Рейтинг третьих мест')
+            messages.append(print_group(self.db, self.get_prioritized(placed3rd), '', 4))
 
+        respond = '\n\n'.join(messages) 
+        return respond   
+    
     def show_user_table(self, user_id):
         groups = self.get_groups()
         for group in groups.values():
@@ -376,8 +387,7 @@ class TournamentUtils:
             for group in groups.values():
                 if place < len(group.items):
                     items.append(group.items[place])
-            sorted_items = sorted(items, key=lambda x: (x.points, x.scored - x.conceded, x.scored), reverse=True)
-            result.extend(sorted_items)
+            result.extend(self.get_prioritized(items))
         
         return result
         
