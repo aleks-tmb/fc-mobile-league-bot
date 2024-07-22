@@ -1,6 +1,7 @@
 import random
 import csv
 import copy
+import math
 
 from utils.group_handler import *
 from utils.drawer import Drawer
@@ -162,40 +163,67 @@ class TournamentUtils:
                 return f"{self.name}\n\n" + group.compute_table(self.db, False) 
         return 'Группа не найдена'  
 
-    def make_playoff(self, pairs_count):
+    def make_playoff(self):
         if 'PLAYOFF' in self.get_stage():
             return 'Плей-офф уже идет'
         
-        users = self.get_rated_list()[:2*pairs_count]
-        ids = [user.id for user in users]
+        rated_teams = self.get_rated_list()
+        # Find the smallest power of 2 greater than half_teams
+        half_teams = len(rated_teams) / 2
+        promoted_count = 2 ** math.ceil(math.log2(half_teams))
+        promoted_users = rated_teams[:promoted_count]
+
+        ids = [user.id for user in promoted_users]
         print(ids)
         random.shuffle(ids)
-        seed = ids[0:pairs_count]
-        non_seed = ids[pairs_count:2*pairs_count]
+
+        mid = len(ids) // 2
+        seed = ids[:mid]
+        non_seed = ids[mid:]
 
         drawer = Drawer()
         pairs = drawer.make_playoff_draw(seed, non_seed)
         self.write_playoff_schedule(pairs)
         return "Жеребьевка успешно проведена!"
 
-    def write_playoff_schedule(self, pairs):
+    def _get_stage_name(self, N):
+        if N >= 8:
+            return f"last{N*2}"
+        
         stage_name = {
             1: "final",
             2: "semifinal",
             4: "quarter",
         }
+        return stage_name[N]
 
+    def _get_next_stage(self, stage):
+        print(f'[_get_next_stage] {stage}')
+        if stage.startswith('last'):
+            number_part = int(stage[4:])
+            new_number = number_part // 2
+            if new_number == 8:
+                return 'quarter'
+            return f'last{new_number}'
+            
+        if stage == 'quarter':
+            return 'semifinal'
+        if stage == 'semifinal':
+            return 'final'
+        return None
+
+    def write_playoff_schedule(self, pairs):
         N_pairs = len(pairs)
         for i in range(N_pairs):
             pair = pairs[i]
-            self._add_record('playoff', stage_name[N_pairs], i, pair[0], pair[1])
-            self._add_record('playoff', stage_name[N_pairs], i, pair[0], pair[1])
+            self._add_record('playoff', self._get_stage_name(N_pairs), i, pair[0], pair[1])
+            self._add_record('playoff', self._get_stage_name(N_pairs), i, pair[0], pair[1])
 
         while N_pairs >= 2:
             N_pairs = N_pairs//2
             for i in range(N_pairs):
-                self._add_record('playoff', stage_name[N_pairs], i, "", "")
-                self._add_record('playoff', stage_name[N_pairs], i, "", "")
+                self._add_record('playoff', self._get_stage_name(N_pairs), i, "", "")
+                self._add_record('playoff', self._get_stage_name(N_pairs), i, "", "")
 
         self._add_record('playoff','third', 0, "", "")
         self._add_record('playoff','third', 0, "", "")
@@ -217,14 +245,9 @@ class TournamentUtils:
         return f"{player1} - {player2}"
 
     def get_playoff_schedule(self):
-        stages = ['last16', 'quarter', 'semifinal', 'third', 'final']
-        rounds = {stage: [] for stage in stages}
-        
-        for row in self.data:
-            if row['stage'] == 'playoff' and row['tag'] in rounds:
-                rounds[row['tag']].append(self.parse_row(row))
-
         stage_names = {
+            'last64': "1/32 финала",
+            'last32': "1/16 финала",
             'last16': "1/8 финала",
             'quarter': "1/4 финала",
             'semifinal': "Полуфиналы",
@@ -232,10 +255,15 @@ class TournamentUtils:
             'third': "Матч за третье место"
         }
         
-        result = []
-        for stage in stages:
-            if rounds[stage]:
-                result.append(f"● {stage_names[stage]}\n" + '\n'.join(rounds[stage]) + '\n\n')
+        rounds = {stage: [] for stage in stage_names}
+        for row in self.data:
+            if row['stage'] == 'playoff' and row['tag'] in rounds:
+                rounds[row['tag']].append(self.parse_row(row))
+        
+        result = [
+            f"● {stage_names[stage]}\n" + '\n'.join(rounds[stage]) + '\n\n'
+            for stage in stage_names if rounds[stage]
+        ]
         
         return ''.join(result)
 
@@ -263,14 +291,6 @@ class TournamentUtils:
             self.update_playoff_path(id0, id1)
 
         return "Результат зафиксирован!"
-
-    def _get_next_stage(self, stage):
-        if stage == 'quarter':
-            return 'semifinal'
-        if stage == 'semifinal':
-            return 'final'
-        return None
-
 
     def update_playoff_path(self, id0, id1):
         self._read_data()

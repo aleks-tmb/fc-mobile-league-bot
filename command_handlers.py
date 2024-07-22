@@ -38,17 +38,6 @@ def log_user_request(user, module = '-'):
     print(f'[{module.upper()}] You talk with user {user["username"]} and his user ID: {user["id"]}')
 
 
-
-async def perform_draw(tag, season):
-    league_db = getLeagueDatabase(tag, season)
-    stage = league_db.get_stage()
-    print(stage)
-
-    if stage == 'NOT-STARTED':
-        league_db.make_groups(4)
-    elif stage == 'GROUP':          
-        league_db.make_playoff(4)
-
 async def show_score_confirmation(db, message, op_id, score, edit_message_id, league_info):
     user_id = message.from_user.id
     tag = league_info['tag']
@@ -105,10 +94,12 @@ async def score_confirm_callback(update: Update, context: ContextTypes.DEFAULT_T
     
     if respond == 'Результат зафиксирован!':
         await update_post(context.bot, edit_id, tag, season)
-        if tour_db.get_stage() == 'GROUP-COMPLETE':
-            tour_db.make_playoff(4)
+
+        stage = tour_db.get_stage()
+        if stage == 'GROUP-COMPLETE':
+            tour_db.make_playoff()
             await make_post(context.bot, tour_db.get_status())
-        elif tour_db.get_stage() == 'PLAYOFF-COMPLETE':
+        elif stage == 'PLAYOFF-COMPLETE':
             await make_post(context.bot, tour_db.get_summary())
 
 async def make_post(bot, post):
