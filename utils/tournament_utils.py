@@ -311,13 +311,12 @@ class TournamentUtils:
         if matches_played < 2:
             return
         
-        next_tag = self._get_next_stage(last_row['tag'])
-        if next_tag is None:
-            return 
-
         if winner is None:
             self._handle_tie(last_row)
         else:
+            next_tag = self._get_next_stage(last_row['tag'])
+            if next_tag is None:
+                return
             self._handle_winner(next_tag, last_row, winner, loser)
 
         self._save_data()
