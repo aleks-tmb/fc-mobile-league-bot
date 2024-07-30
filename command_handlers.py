@@ -397,6 +397,7 @@ async def reply_to_comment(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     is_admin = any(admin.user.id == sender_id for admin in chat_admins)
     channel_post = message.reply_to_message
 
+    print(f"[chat id] = {message.chat.id}")
     if message.chat.title == CONFIG.get('superleague_group'):
         print(f"[reply_to_comment] In the superleague group")
         await reply_in_superleague_chat(message, is_admin, context.bot)
