@@ -7,8 +7,10 @@ from utils.tournament_utils import TournamentUtils
 from utils.config_utils import CONFIG
 from score_processor import ScoreProcessor
 from utils.users_database import UsersDatabaseCSV
+from utils.super_league_registrator import SuperLeagueRegistrator
 
 import re
+import random
 
 def getUsersDatabase():
     return UsersDatabaseCSV(CONFIG.get('database_path'))
@@ -115,18 +117,16 @@ async def update_post(bot, edit_id, tag, season) -> None:
         await bot.edit_message_text(chat_id=CHANNEL_USERNAME, message_id=edit_id, text=new_text, parse_mode=ParseMode.HTML)
     except:
         return
-
-def parse_channel_post(from_chat, text):
-    if from_chat != CONFIG.get('channel_username'):
-        print("[parse_channel_post] wrong chat name") 
-        return
-
+    
+def parse_channel_post(text):
     lines = text.splitlines()
 
     if lines[0] == 'Лига Чемпионов':
         tag = 'CL'
     elif lines[0] == 'Лига Европы':
         tag = 'EL'
+    elif lines[0].startswith('Суперлига'):
+        tag = 'SL'
     else:
         print(f"[parse_channel_post] Wrong league name {lines[0]}")
         return None
@@ -283,6 +283,67 @@ async def reply_in_common_chat(message, is_admin):
     if message.reply_to_message:
         await process_replay(message)
 
+superleague_lists = {}
+registrated_users = []
+
+async def reply_in_superleague_chat(message, is_admin, bot):
+    if not message.text:
+        return
+    user = message.from_user
+    
+    lower_text = message.text.lower()
+    if lower_text.startswith('бот'):
+        clean_text = re.sub(r'[.,?!\-]', ' ', message.text)
+        words = clean_text.split()[1:]
+        print(words)
+
+        if is_admin and check_pattern(words, 'регистрируй'):
+            channel_post = message.reply_to_message
+            if not channel_post:
+                return
+            
+            print(channel_post)
+            sent_message = await bot.send_message(chat_id=message.chat.id, message_thread_id=message.message_thread_id, text=channel_post.text) 
+            if sent_message.id not in superleague_lists:
+                superleague_lists[sent_message.id] = sent_message.text        
+            return
+        
+        if check_pattern(words, '+1'):
+            if len(superleague_lists) == 0:
+                await message.reply_text("Регистрация не стартовала")
+
+            if user.username is None:
+                await message.reply_text("Установите юзернейм")
+                
+            if user.username in registrated_users:
+                await message.reply_text("Вы уже зарегистрированы!")
+                return
+
+            registrator = SuperLeagueRegistrator()
+            keys = []
+            for key, text in superleague_lists.items():
+                if not registrator.get_group_if_registration_complete(text):
+                    keys.append(key)
+
+            if len(keys) == 0:
+                await message.reply_text("Регистрация завершена!")
+                return
+            
+            key = random.choice(keys) 
+            try: 
+                lines = registrator.extract_lines_with_teams(superleague_lists[key])
+                res = registrator.assign_user_to_random_line(lines, user.username)
+                registrated_users.append(user.username)
+                await message.reply_text(res)
+                respond = '\n'.join(lines)
+                superleague_lists[key] = respond
+                await bot.edit_message_text(chat_id=message.chat.id, message_id=key, text=respond)
+
+                db = getUsersDatabase()
+                db.add_user(user.id, user.username)
+            except:
+                pass
+
 
 async def reply_to_private(message, context):
     sender_id = message.from_user.id
@@ -315,7 +376,6 @@ async def reply_to_private(message, context):
     else:
         await message.reply_text("Го регистрацию, турнир?")
 
-
 async def reply_to_comment(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = update.message
     if not message:
@@ -323,7 +383,7 @@ async def reply_to_comment(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     chat_type = message.chat.type
     sender_id = message.from_user.id
-    
+
     if chat_type == "private":
         await reply_to_private(message, context)
         return
@@ -336,6 +396,12 @@ async def reply_to_comment(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     chat_admins = await context.bot.get_chat_administrators(chat_id)
     is_admin = any(admin.user.id == sender_id for admin in chat_admins)
     channel_post = message.reply_to_message
+
+    if message.chat.title == CONFIG.get('superleague_group'):
+        print(f"[reply_to_comment] In the superleague group")
+        await reply_in_superleague_chat(message, is_admin, context.bot)
+        return
+
 
     if message.chat.title == CONFIG.get('group_title'):
         print(f"[reply_to_comment] In the main group")
@@ -354,10 +420,14 @@ async def reply_to_comment(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     if channel_post and channel_post.forward_origin:
         origin = channel_post.forward_origin
+        from_chat = origin.chat.username
+        if from_chat != CONFIG.get('channel_username'):
+            print("[parse_channel_post] wrong chat name") 
+            return
     else:
         return
 
-    league_info = parse_channel_post(origin.chat.username, channel_post.text)
+    league_info = parse_channel_post(channel_post.text)
     if not league_info:
         return
 

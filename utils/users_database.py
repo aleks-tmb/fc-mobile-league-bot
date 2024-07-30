@@ -107,3 +107,13 @@ class UsersDatabaseCSV:
         player[key] = value
         self.update_user(player)
         return f"{username}, новое значение {value} записано!"
+    
+    def convert_usernames_to_ids(self, usernames):
+        ids = []
+        for name in usernames:
+            try:
+                print(f"Convert {name}")
+                ids.append(self.get_id_by_username(name))
+            except KeyError:
+                return None
+        return ids
