@@ -4,8 +4,8 @@ def print_group(db, items, title = '', split_after = None):
     result = f"● {title} [игры,очки,голы]\n{delim}\n"
     for num, item in enumerate(items, start=1):
         diff = f"{item.scored}-{item.conceded}"
-        username = db.get_username_by_id(item.id)[:13]
-        result += f"{num} {username:13}{item.games:2}{item.points:3} {diff}\n" 
+        username = db.get_username_by_id(item.id)[:14]
+        result += f"{num:2} {username:14}{item.games:2}{item.points:3} {diff}\n" 
         if num == split_after:
             result += f"{delim}\n"
 

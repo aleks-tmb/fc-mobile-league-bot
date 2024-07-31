@@ -85,7 +85,7 @@ async def score_confirm_callback(update: Update, context: ContextTypes.DEFAULT_T
         await query.edit_message_text(text="Отменяю!")
         return
     
-    if tag not in ['CL', 'EL']:
+    if tag not in ['CL', 'EL', 'SL']:
         respond = "Турнир не идентифицирован"
     else:
         tour_db = getLeagueDatabase(tag, season)
@@ -109,11 +109,22 @@ async def make_post(bot, post):
     await bot.send_message(chat_id=CHANNEL_USERNAME, text=post, parse_mode=ParseMode.HTML)  
 
 async def update_post(bot, edit_id, tag, season) -> None:
-    CHANNEL_USERNAME = f"@{CONFIG.get('channel_username')}"
+    
     league_db = getLeagueDatabase(tag, season)
-    new_text = league_db.get_status()
+
+    if tag == 'SL':
+        respond = league_db.get_status()
+        chat_id = league_db.get_metainfo('chat_id')
+        message_id = league_db.get_metainfo('message_id')
+        try:
+            await bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=respond, parse_mode=ParseMode.HTML) 
+        except:
+            pass
+        return       
 
     try:
+        new_text = league_db.get_status()
+        CHANNEL_USERNAME = f"@{CONFIG.get('channel_username')}"
         await bot.edit_message_text(chat_id=CHANNEL_USERNAME, message_id=edit_id, text=new_text, parse_mode=ParseMode.HTML)
     except:
         return
@@ -284,18 +295,23 @@ async def reply_in_common_chat(message, is_admin):
         await process_replay(message)
 
 superleague_lists = {}
-registrated_users = []
 
-async def reply_in_superleague_chat(message, is_admin, bot):
+async def reply_in_superleague_chat(message, is_admin, is_owner, bot):
     if not message.text:
         return
     user = message.from_user
+    registrator = SuperLeagueRegistrator()
+    db = getUsersDatabase()
     
     lower_text = message.text.lower()
     if lower_text.startswith('бот'):
         clean_text = re.sub(r'[.,?!\-]', ' ', message.text)
         words = clean_text.split()[1:]
         print(words)
+
+        if is_owner and check_pattern(words, 'дебаг'):
+            print(message)
+            return
 
         if is_admin and check_pattern(words, 'регистрируй'):
             channel_post = message.reply_to_message
@@ -304,26 +320,40 @@ async def reply_in_superleague_chat(message, is_admin, bot):
             
             print(channel_post)
             sent_message = await bot.send_message(chat_id=message.chat.id, message_thread_id=message.message_thread_id, text=channel_post.text) 
-            if sent_message.id not in superleague_lists:
-                superleague_lists[sent_message.id] = sent_message.text        
+            
+            for key, saved_message in superleague_lists.items():
+                if sent_message.message_thread_id == saved_message.message_thread_id:
+                    del superleague_lists[key]
+                    print(f"removed message with id {key}")
+                    break
+                
+            superleague_lists[sent_message.id] = sent_message   
+            print(f"added message with id {sent_message.id}")  
             return
         
         if check_pattern(words, '+1'):
             if len(superleague_lists) == 0:
-                await message.reply_text("Регистрация не стартовала")
+                await message.reply_text("Регистрация не производится!")
+                return
 
             if user.username is None:
                 await message.reply_text("Установите юзернейм")
+                return
                 
+            keys = []
+            registrated_users = []
+            for key, sent_message in superleague_lists.items():
+                users = registrator.get_all_users(sent_message.text)
+                lines = registrator.extract_lines_with_teams(sent_message.text)
+                registrated_users += users
+
+                if len(users) < len(lines):
+                    keys.append(key)
+
+            print(registrated_users)
             if user.username in registrated_users:
                 await message.reply_text("Вы уже зарегистрированы!")
                 return
-
-            registrator = SuperLeagueRegistrator()
-            keys = []
-            for key, text in superleague_lists.items():
-                if not registrator.get_group_if_registration_complete(text):
-                    keys.append(key)
 
             if len(keys) == 0:
                 await message.reply_text("Регистрация завершена!")
@@ -331,18 +361,49 @@ async def reply_in_superleague_chat(message, is_admin, bot):
             
             key = random.choice(keys) 
             try: 
-                lines = registrator.extract_lines_with_teams(superleague_lists[key])
+                lines = registrator.extract_lines_with_teams(superleague_lists[key].text)
                 res = registrator.assign_user_to_random_line(lines, user.username)
-                registrated_users.append(user.username)
                 await message.reply_text(res)
                 respond = '\n'.join(lines)
-                superleague_lists[key] = respond
-                await bot.edit_message_text(chat_id=message.chat.id, message_id=key, text=respond)
+                sent_message = await bot.edit_message_text(chat_id=message.chat.id, message_id=key, text=respond)
+                superleague_lists[key] = sent_message
 
-                db = getUsersDatabase()
                 db.add_user(user.id, user.username)
             except:
                 pass
+            return
+        
+        if is_owner and check_pattern(words, 'стартуй'):
+            tour_db = getLeagueDatabase('SL', 1)
+            groups = [[] for _ in range(len(superleague_lists))]
+
+            for index, value in enumerate(superleague_lists.values()):
+                usernames = registrator.get_all_users(value.text)
+                groups[index] = db.convert_usernames_to_ids(usernames)
+            
+            tour_db.write_group_schedule(groups, 1)
+
+            respond = tour_db.get_status()
+            result_thread_id = int(CONFIG.get('result_thread_id'))
+            sent_message = await bot.send_message(chat_id=message.chat.id, message_thread_id=result_thread_id, text=respond, parse_mode=ParseMode.HTML)
+            tour_db.set_metainfo('message_id', sent_message.id)
+            tour_db.set_metainfo('chat_id', message.chat.id)
+
+        league_info = {"tag" : 'SL', "season" : 1}
+        words = parse_bot_request(message.text)
+        if words is None:
+            return
+        score_processor = ScoreProcessor(words)
+        result = score_processor.get_report()
+        if result:
+            op_username, score = result
+            print(op_username, score)
+            try:
+                op_id = db.get_user(op_username,'username')["ID"]
+                await show_score_confirmation(db, message, op_id, score, 0, league_info)
+            except KeyError:
+                await message.reply_text(f'Игрок {op_username} не найден в базе данных')
+
 
 
 async def reply_to_private(message, context):
@@ -392,15 +453,14 @@ async def reply_to_comment(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         return
 
     chat_id = update.effective_chat.id
-    
     chat_admins = await context.bot.get_chat_administrators(chat_id)
     is_admin = any(admin.user.id == sender_id for admin in chat_admins)
+    is_owner = (sender_id == int(CONFIG.get('owner_id')))
     channel_post = message.reply_to_message
 
-    print(f"[chat id] = {message.chat.id}")
-    if message.chat.title == CONFIG.get('superleague_group'):
+    if message.chat.id == int(CONFIG.get('superleague_group_id')):
         print(f"[reply_to_comment] In the superleague group")
-        await reply_in_superleague_chat(message, is_admin, context.bot)
+        await reply_in_superleague_chat(message, is_admin, is_owner, context.bot)
         return
 
 

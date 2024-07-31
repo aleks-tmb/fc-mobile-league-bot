@@ -45,18 +45,15 @@ class SuperLeagueRegistrator:
         except Exception as e:
             return f"Ошибка при регистрации: {e}"
         
-    def get_group_if_registration_complete(self, text):
+    def get_all_users(self, text):
         lines = self.extract_lines_with_teams(text)
         users = []
         pattern = r'.*@(.*)'
         for line in lines:
             obj = re.match(pattern, line)
             if obj:
-                users.append(obj.groups()[0])
-        
-        if len(users) == len(lines):
-            return users
-        return None
+                users.append(obj.groups()[0]) 
+        return users
 
 
 

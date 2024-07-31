@@ -22,7 +22,7 @@ from command_handlers import getUsersDatabase
 def init_bot(token):
     print("Starting bot...")
     application = Application.builder().token(token).build()
-    application.add_handler(CallbackQueryHandler(score_confirm_callback, pattern=r'^confirm_(yes|no)_\d+_\d+_\d_\d_\d+_(CL|EL)_\d+$')) 
+    application.add_handler(CallbackQueryHandler(score_confirm_callback, pattern=r'^confirm_(yes|no)_\d+_\d+_\d+_\d+_\d+_(CL|EL|SL)_\d+$')) 
     application.add_handler(MessageHandler(filters.ALL & (~filters.COMMAND), reply_to_comment))
 
     application.run_polling(allowed_updates=Update.ALL_TYPES)

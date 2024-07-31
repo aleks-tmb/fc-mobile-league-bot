@@ -15,23 +15,31 @@ class TournamentUtils:
         print(self.file_path)
         if 'CL' in tag:
             self.name = 'Лига Чемпионов'
-        else:
+        elif 'EL' in tag:
             self.name = 'Лига Европы'
+        else:
+            self.name = 'Суперлига'
         self.data = []
+        self.metainfo = []
         self._read_data()
 
     def _read_data(self):
         try:
             with open(self.file_path, mode='r', newline='') as file:
                 reader = csv.DictReader(file)
-                self.data = [row for row in reader]
-                for row in self.data:
-                    row['number'] = int(row['number'])
-                    try:
-                        row['id0'] = int(row['id0'])
-                        row['id1'] = int(row['id1'])
-                    except:
-                        continue
+                self.data.clear()
+                self.metainfo.clear()               
+                for row in reader:
+                    if row['stage'] == 'metainfo':
+                        self.metainfo.append(row)
+                    else:
+                        row['number'] = int(row['number'])
+                        try:
+                            row['id0'] = int(row['id0'])
+                            row['id1'] = int(row['id1'])
+                        except:
+                            pass
+                        self.data.append(row)
         except:
             return
 
@@ -43,6 +51,7 @@ class TournamentUtils:
                 writer = csv.DictWriter(file, fieldnames=fieldnames)
                 writer.writeheader()
                 writer.writerows(self.data)
+                writer.writerows(self.metainfo)
 
     def _add_record(self, stage, tag, number, id0, id1, index=None):
             new_record = {
@@ -55,6 +64,32 @@ class TournamentUtils:
                 "score": ''
             }
             self.data.append(new_record)
+
+    def set_metainfo(self, key, value):
+        for row in self.metainfo:
+            if row['tag'] == key:
+                row['number'] = value
+                self._save_data()
+                print(f"updated {key} = {value}")
+                return
+
+        new_record = {
+            "ID": len(self.metainfo),
+            "stage" : 'metainfo',
+            "tag": key,
+            "number": value,
+        }
+        self.metainfo.append(new_record)
+        print(f"added {key} = {value}")
+        self._save_data()
+
+    def get_metainfo(self, key):
+        self._read_data()
+        for row in self.metainfo:
+            if row['tag'] == key:
+                return row['number']
+        return None
+        
 
 #---------------------------------------------------------------------------------# 
     def get_name(self):
@@ -89,13 +124,15 @@ class TournamentUtils:
         if 'PLAYOFF' in stage:
             if full:
                 result += 'Групповой этап\n'
-                result += f'<pre>\n{self.show_all_tables()}</pre>\n\n'                
+                table = '\n\n'.join(self.show_all_tables())
+                result += f'<pre>\n{table}</pre>\n\n'                
 
             result += 'Плей-офф\n'
             result += f'<pre>\n{self.get_playoff_schedule()}</pre>\n'
         else:
             result += 'Групповой этап\n'
-            result += f'<pre>\n{self.show_all_tables()}</pre>\n'
+            table = '\n\n'.join(self.show_all_tables())
+            result += f'<pre>\n{table}</pre>\n\n'  
 
         if full:
             result += f"\n{self.get_summary(False)}\n"
@@ -118,14 +155,16 @@ class TournamentUtils:
         self.write_group_schedule(groups)
         return self.make_draw_respond(groups)
 
-    def write_group_schedule(self, groups):
+    def write_group_schedule(self, groups, matches = 2):
+        if self.get_stage() != 'NOT-STARTED':
+            return
         self.data.clear()
         for index, group in enumerate(groups):
             letter = chr(ord('A') + index)
             for i in range(len(group)):
                 for j in range(i + 1, len(group)):
-                    self._add_record('group', letter, 0, group[i], group[j])
-                    self._add_record('group', letter, 0, group[i], group[j])
+                    for m in range(matches):
+                        self._add_record('group', letter, 0, group[i], group[j])
         self._save_data()
 
     def make_draw_respond(self, groups):
@@ -162,9 +201,7 @@ class TournamentUtils:
             placed3rd = [group.items[2] for group in groups.values()]
             messages.append('Рейтинг третьих мест')
             messages.append(print_group(self.db, self.get_prioritized(placed3rd), '', 4))
-
-        respond = '\n\n'.join(messages) 
-        return respond   
+        return messages 
     
     def show_user_table(self, user_id):
         groups = self.get_groups()
