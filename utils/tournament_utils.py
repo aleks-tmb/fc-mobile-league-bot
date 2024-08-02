@@ -472,6 +472,17 @@ class TournamentUtils:
             body = header + body
         return body
 
+    def get_user_matches_list(self, user_id):
+        self._read_data()
+        matches = []
+        for row in self.data:
+            if user_id in [row['id0'], row['id1']]:
+                match = Match(row['id0'], row['id1'], row['score'])
+                matches.append(match)
+
+        return "\n".join(match.to_string(self.db) for match in matches)
+
+
 
 
         

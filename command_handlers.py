@@ -331,6 +331,12 @@ async def reply_in_superleague_chat(message, is_admin, is_owner, bot):
             print(f"added message with id {sent_message.id}")  
             return
         
+        if check_pattern(words, 'мои матчи'):
+            SL = getLeagueDatabase('SL', 1)
+            await message.reply_text(SL.get_user_matches_list(user.id))
+            return
+
+
         if check_pattern(words, '+1'):
             if len(superleague_lists) == 0:
                 await message.reply_text("Регистрация не производится!")
