@@ -200,7 +200,7 @@ class TournamentUtils:
         if self.league_tag == 'CL':
             placed3rd = [group.items[2] for group in groups.values()]
             messages.append('Рейтинг третьих мест')
-            messages.append(print_group(self.db, self.get_prioritized(placed3rd), '', 4))
+            messages.append(print_group(self.db, self.get_prioritized(placed3rd), '', 2))
         return messages 
     
     def show_user_table(self, user_id):

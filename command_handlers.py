@@ -417,15 +417,15 @@ async def reply_to_private(message, context):
     if sender_id != int(CONFIG.get('owner_id')):
         return
 
-    EL = getLeagueDatabase('EL', 10)
-    CL = getLeagueDatabase('CL', 10)
+    EL = getLeagueDatabase('EL', 11)
+    CL = getLeagueDatabase('CL', 11)
 
     if message.text == 'Го регистрацию':  
         await make_post(context.bot, CL.get_status())
         await make_post(context.bot, EL.get_status())
         await message.reply_text("Posted!")
     elif message.text == 'Го турнир':
-        CL.make_groups(6) 
+        CL.make_groups(7) 
         EL.make_groups(4)
         await make_post(context.bot, CL.get_status())
         await make_post(context.bot, EL.get_status())
