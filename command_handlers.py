@@ -439,7 +439,8 @@ async def reply_to_private(message, context):
         except Exception as e:
             # Log the exception if needed
             print(f"Error fetching user data: {e}")
-
+    elif message.text == 'обнови суперлигу':
+            await update_post(context.bot, None, 'SL', 1)      
     else:
         await message.reply_text("Го регистрацию, турнир?")
 
