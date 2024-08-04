@@ -466,13 +466,13 @@ async def reply_to_comment(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     channel_post = message.reply_to_message
 
     if message.chat.id == int(CONFIG.get('superleague_group_id')):
-        print(f"[reply_to_comment] In the superleague group")
+        print(f"SL {message.from_user.username}: {message.text}")
         await reply_in_superleague_chat(message, is_admin, is_owner, context.bot)
         return
 
 
     if message.chat.title == CONFIG.get('group_title'):
-        print(f"[reply_to_comment] In the main group")
+        print(f"MAIN {message.from_user.username}: {message.text}")
         if channel_post and is_admin and message.text.lower() == 'бан':
             try:
                 ban_id = channel_post.from_user.id
