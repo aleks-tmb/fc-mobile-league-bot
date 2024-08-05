@@ -214,7 +214,12 @@ class TournamentUtils:
     def make_playoff(self):
         if 'PLAYOFF' in self.get_stage():
             return 'Плей-офф уже идет'
-        
+
+        if self.league_tag == 'SL':
+            pairs = self.get_fixed_playoff()
+            self.write_playoff_schedule(pairs)
+            return "Жеребьевка успешно проведена!"
+    
         rated_teams = self.get_rated_list()
         # Find the smallest power of 2 greater than half_teams
         half_teams = len(rated_teams) / 2
@@ -426,7 +431,26 @@ class TournamentUtils:
             result.extend(self.get_prioritized(items))
         
         return result
+
+    def get_fixed_playoff(self):
+        groups = self.get_groups()
+        for group in groups.values():
+            group.compute_table(self.db)
         
+        groupA = groups['A']
+        groupB = groups['B']
+    
+        pairs = []
+        pairs.append([groupA.items[0].id,groupB.items[7].id])
+        pairs.append([groupA.items[3].id,groupB.items[4].id])
+        pairs.append([groupA.items[1].id,groupB.items[6].id])
+        pairs.append([groupA.items[2].id,groupB.items[5].id])
+        
+        pairs.append([groupA.items[5].id,groupB.items[2].id])
+        pairs.append([groupA.items[6].id,groupB.items[1].id])
+        pairs.append([groupA.items[4].id,groupB.items[3].id])
+        pairs.append([groupA.items[7].id,groupB.items[0].id])
+        return pairs
 
     def get_participants(self):
         users = self.db.get_all_users()

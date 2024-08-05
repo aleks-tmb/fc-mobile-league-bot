@@ -100,7 +100,10 @@ async def score_confirm_callback(update: Update, context: ContextTypes.DEFAULT_T
         stage = tour_db.get_stage()
         if stage == 'GROUP-COMPLETE':
             tour_db.make_playoff()
-            await make_post(context.bot, tour_db.get_status())
+            if tag == 'SL':
+                await update_post(context.bot, edit_id, tag, season)
+            else:
+                await make_post(context.bot, tour_db.get_status())
         elif stage == 'PLAYOFF-COMPLETE':
             await make_post(context.bot, tour_db.get_summary())
 
@@ -440,7 +443,7 @@ async def reply_to_private(message, context):
             # Log the exception if needed
             print(f"Error fetching user data: {e}")
     elif message.text == 'обнови суперлигу':
-            await update_post(context.bot, None, 'SL', 1)      
+            await update_post(context.bot, None, 'SL', 1)            
     else:
         await message.reply_text("Го регистрацию, турнир?")
 
